@@ -1,0 +1,50 @@
+---
+# Render the compose project and bring the stack up.
+
+- name: Ensure the deployment directory exists
+  ansible.builtin.file:
+    path: "{{ keycloak_deploy_dir }}"
+    state: directory
+    owner: "{{ keycloak_deploy_user }}"
+    group: "{{ keycloak_deploy_group }}"
+    mode: "0750"
+
+- name: Render the .env file (secrets)
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ _keycloak_env_file }}"
+    owner: "{{ keycloak_deploy_user }}"
+    group: "{{ keycloak_deploy_group }}"
+    mode: "0600"
+  no_log: true
+  notify: Restart Keycloak stack
+
+- name: Render the docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ _keycloak_compose_file }}"
+    owner: "{{ keycloak_deploy_user }}"
+    group: "{{ keycloak_deploy_group }}"
+    mode: "0640"
+  notify: Restart Keycloak stack
+
+- name: Render the Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ _keycloak_caddyfile }}"
+    owner: "{{ keycloak_deploy_user }}"
+    group: "{{ keycloak_deploy_group }}"
+    mode: "0640"
+  notify: Restart Keycloak stack
+
+- name: Bring up the Keycloak + Caddy + PostgreSQL stack
+  community.docker.docker_compose_v2:
+    project_name: "{{ keycloak_project_name }}"
+    project_src: "{{ keycloak_deploy_dir }}"
+    state: present
+    pull: "{{ keycloak_image_pull_policy }}"
+    remove_orphans: true
+  register: _keycloak_compose_up
+
+- name: Flush handlers so config changes are applied immediately
+  ansible.builtin.meta: flush_handlers

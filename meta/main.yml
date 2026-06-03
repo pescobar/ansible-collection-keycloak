@@ -1,0 +1,33 @@
+---
+galaxy_info:
+  role_name: keycloak
+  namespace: pescobar
+  author: pescobar
+  description: >-
+    Deploy Keycloak with a Caddy TLS-terminating reverse proxy and a
+    PostgreSQL backend via Docker Compose. Does not install Docker.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: EL
+      versions:
+        - "9"
+  galaxy_tags:
+    - keycloak
+    - caddy
+    - docker
+    - sso
+    - iam
+
+dependencies: []
+
+# Requires the community.docker collection on the controller (see
+# requirements.yml). Docker Engine + Compose v2 must already be installed on
+# the target host.

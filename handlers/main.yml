@@ -1,0 +1,10 @@
+---
+# handlers file for ansible-role-keycloak
+
+- name: Restart Keycloak stack
+  community.docker.docker_compose_v2:
+    project_name: "{{ keycloak_project_name }}"
+    project_src: "{{ keycloak_deploy_dir }}"
+    state: restarted
+    pull: "{{ keycloak_image_pull_policy }}"
+    remove_orphans: true

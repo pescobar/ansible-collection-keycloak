@@ -1,0 +1,24 @@
+---
+# tasks file for ansible-role-keycloak
+
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - keycloak_hostname is defined and keycloak_hostname | length > 0
+      - keycloak_hostname != "auth.example.com"
+      - keycloak_acme_email is defined and keycloak_acme_email | length > 0
+      - keycloak_admin_password is defined and keycloak_admin_password | length > 0
+      - keycloak_admin_password != "changeme-admin"
+      - keycloak_db_password is defined and keycloak_db_password | length > 0
+      - keycloak_db_password != "changeme-db"
+    fail_msg: >-
+      You must set keycloak_hostname, keycloak_acme_email and override the
+      default admin/db passwords (keycloak_admin_password, keycloak_db_password)
+      before running this role.
+    quiet: true
+
+- name: Verify Docker prerequisites
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Deploy the Keycloak + Caddy stack
+  ansible.builtin.import_tasks: deploy.yml

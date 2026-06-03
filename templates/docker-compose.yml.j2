@@ -1,0 +1,84 @@
+{{ ansible_managed | comment }}
+# Keycloak fronted by Caddy (TLS termination) backed by PostgreSQL.
+# Rendered by Ansible. Do not edit by hand; changes will be overwritten.
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # PostgreSQL 18+ images store data in a major-version subdirectory and
+      # expect the volume mounted at /var/lib/postgresql (NOT .../data).
+      # See https://github.com/docker-library/postgres/pull/1259
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  keycloak:
+    image: ${KEYCLOAK_IMAGE}
+    restart: unless-stopped
+    command: ["start", "--optimized=false"]
+    environment:
+      # --- Database ---
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: ${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # --- Hostname (TLS terminates at Caddy) ---
+      KC_HOSTNAME: https://${KEYCLOAK_HOSTNAME}
+      KC_HTTP_ENABLED: "true"
+      # Trust the X-Forwarded-* headers Caddy sets so Keycloak builds correct
+      # absolute URLs and sees the original client protocol/host.
+      KC_PROXY_HEADERS: xforwarded
+      # --- Operational ---
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+{% for key, value in keycloak_extra_env.items() %}
+      {{ key }}: "{{ value }}"
+{% endfor %}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # The image ships no curl/wget; probe the management port (9000) with a
+      # raw HTTP request over bash's /dev/tcp and look for a healthy status.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+  caddy:
+    image: ${CADDY_IMAGE}
+    restart: unless-stopped
+    ports:
+      - "${CADDY_HTTP_PORT}:80"
+      - "${CADDY_HTTPS_PORT}:443"
+    environment:
+      KEYCLOAK_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+      ACME_EMAIL: ${ACME_EMAIL}
+{% if keycloak_acme_ca | length > 0 %}
+      ACME_CA: ${ACME_CA}
+{% endif %}
+    volumes:
+      - {{ _keycloak_caddyfile }}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - keycloak
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

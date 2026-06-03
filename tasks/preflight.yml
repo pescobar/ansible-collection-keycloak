@@ -1,0 +1,54 @@
+---
+# Verify Docker is present and usable. This role does NOT install Docker;
+# Docker Engine + the Compose v2 plugin are expected to be installed already.
+
+- name: Check that the docker CLI is on PATH
+  ansible.builtin.command: docker --version
+  register: _keycloak_docker_version
+  changed_when: false
+  failed_when: _keycloak_docker_version.rc != 0
+  # Provide a clear message instead of a raw "command not found".
+  ignore_errors: true
+
+- name: Fail if the docker CLI is missing
+  ansible.builtin.fail:
+    msg: >-
+      The 'docker' command was not found on {{ inventory_hostname }}. This role
+      requires Docker Engine to be installed beforehand. Install it (e.g. via
+      the geerlingguy.docker role or your distro packages) and re-run.
+  when: _keycloak_docker_version.rc is not defined or _keycloak_docker_version.rc != 0
+
+- name: Check that the Docker daemon is running and reachable
+  ansible.builtin.command: docker info --format '{{ "{{" }}.ServerVersion{{ "}}" }}'
+  register: _keycloak_docker_info
+  changed_when: false
+  failed_when: false
+
+- name: Fail if the Docker daemon is not reachable
+  ansible.builtin.fail:
+    msg: >-
+      Could not talk to the Docker daemon on {{ inventory_hostname }}
+      ('docker info' failed). Ensure the daemon is started and that the
+      connecting user has permission to use the Docker socket.
+  when: _keycloak_docker_info.rc != 0
+
+- name: Check that the Docker Compose v2 plugin is available
+  ansible.builtin.command: docker compose version
+  register: _keycloak_compose_version
+  changed_when: false
+  failed_when: false
+
+- name: Fail if the Docker Compose v2 plugin is missing
+  ansible.builtin.fail:
+    msg: >-
+      The Docker Compose v2 plugin ('docker compose') is not available on
+      {{ inventory_hostname }}. Install the docker-compose-plugin package (or
+      equivalent). The legacy standalone 'docker-compose' binary is not used.
+  when: _keycloak_compose_version.rc != 0
+
+- name: Report detected Docker versions
+  ansible.builtin.debug:
+    msg:
+      - "Docker:  {{ _keycloak_docker_version.stdout | default('unknown') }}"
+      - "Daemon:  {{ _keycloak_docker_info.stdout | default('unknown') }}"
+      - "Compose: {{ _keycloak_compose_version.stdout | default('unknown') }}"

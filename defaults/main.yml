@@ -1,0 +1,130 @@
+---
+# defaults file for ansible-role-keycloak
+
+# ----------------------------------------------------------------------------
+# Deployment location
+# ----------------------------------------------------------------------------
+# Directory on the target host where the compose project, Caddyfile and the
+# generated .env file are rendered.
+keycloak_deploy_dir: /opt/keycloak
+
+# User/group that should own the rendered files. Must already exist.
+keycloak_deploy_user: root
+keycloak_deploy_group: root
+
+# Name of the docker compose project (prefixes container/volume/network names).
+keycloak_project_name: keycloak
+
+# ----------------------------------------------------------------------------
+# Container images
+# ----------------------------------------------------------------------------
+# Official Keycloak image. Docker Hub mirrors the canonical quay.io image.
+keycloak_image: quay.io/keycloak/keycloak
+keycloak_version: "26.6.2-2"
+
+# Official Caddy image used as the TLS-terminating reverse proxy.
+caddy_image: caddy
+caddy_version: "2"
+
+# Official PostgreSQL image backing Keycloak in production mode.
+# The "18" tag always tracks the latest stable PostgreSQL 18.x release.
+postgres_image: postgres
+postgres_version: "18"
+
+# ----------------------------------------------------------------------------
+# Public hostname / TLS (Caddy automatic HTTPS via Let's Encrypt)
+# ----------------------------------------------------------------------------
+# REQUIRED. The public FQDN Keycloak is served on. Caddy provisions a
+# Let's Encrypt certificate for this name, so it must resolve publicly to
+# this host and ports 80 + 443 must be reachable from the internet.
+keycloak_hostname: "auth.example.com"
+
+# Email registered with the ACME (Let's Encrypt) account for expiry notices.
+keycloak_acme_email: "admin@example.com"
+
+# Set to "https://acme-staging-v02.api.letsencrypt.org/directory" while
+# testing to avoid hitting Let's Encrypt production rate limits. Leave empty
+# to use the Let's Encrypt production CA.
+keycloak_acme_ca: ""
+
+# Host ports Caddy binds. 80 is required for the ACME HTTP challenge / redirect.
+keycloak_http_port: 80
+keycloak_https_port: 443
+
+# ----------------------------------------------------------------------------
+# Keycloak admin bootstrap (Keycloak 26+ temporary admin)
+# ----------------------------------------------------------------------------
+# Create a strong password (e.g. with `openssl rand -base64 24`) and supply it
+# via group_vars/vault rather than committing it. This bootstraps the first
+# admin; rotate/replace it from the admin console afterwards.
+keycloak_admin_user: admin
+keycloak_admin_password: "changeme-admin"
+
+# ----------------------------------------------------------------------------
+# PostgreSQL
+# ----------------------------------------------------------------------------
+keycloak_db_name: keycloak
+keycloak_db_user: keycloak
+keycloak_db_password: "changeme-db"
+
+# ----------------------------------------------------------------------------
+# Keycloak runtime tuning
+# ----------------------------------------------------------------------------
+# Extra raw environment variables (key: value) injected verbatim into the
+# Keycloak container, e.g. {KC_LOG_LEVEL: INFO}. Use this for any server option
+# this role does not template directly.
+#
+# Naming convention: every Keycloak server option has an environment-variable
+# form. Take the CLI option, drop the leading "--", uppercase it, replace "-"
+# with "_" and prefix with "KC_". For example --log-level -> KC_LOG_LEVEL,
+# --spi-connections-http-client-default-connection-pool-size ->
+# KC_SPI_CONNECTIONS_HTTP_CLIENT_DEFAULT_CONNECTION_POOL_SIZE.
+#
+# Authoritative, complete and version-specific lists of every accepted option:
+#   - All server options (searchable):  https://www.keycloak.org/server/all-config
+#   - Configuring Keycloak (concepts):  https://www.keycloak.org/server/configuration
+#   - Per-area guides:
+#       Hostname / proxy ...... https://www.keycloak.org/server/hostname
+#                               https://www.keycloak.org/server/reverseproxy
+#       Database .............. https://www.keycloak.org/server/db
+#       TLS ................... https://www.keycloak.org/server/enabletls
+#       Caching / clustering .. https://www.keycloak.org/server/caching
+#       Logging ............... https://www.keycloak.org/server/logging
+#       Health & metrics ...... https://www.keycloak.org/server/health
+#       Hardening (prod) ...... https://www.keycloak.org/server/configuration-production
+#       Importing realms ...... https://www.keycloak.org/server/importExport
+#
+# NOTE: To match the exact options for the image tag you deploy, the in-image
+# list is the source of truth: `docker run --rm <image>:<tag> show-config`
+# or `... help all`.
+#
+# Frequently used options (commented examples — uncomment in your own vars):
+# keycloak_extra_env:
+#   # --- Logging / observability ---
+#   KC_LOG_LEVEL: INFO                 # root log level (e.g. INFO, DEBUG, WARN)
+#   KC_LOG: "console,file"             # log handlers to enable
+#   KC_LOG_CONSOLE_OUTPUT: json        # "default" or "json" structured logs
+#   # --- Localization / theming ---
+#   KC_SPI_THEME_WELCOME_THEME: keycloak
+#   # --- Features (comma-separated) ---
+#   KC_FEATURES: "token-exchange,admin-fine-grained-authz"
+#   KC_FEATURES_DISABLED: "impersonation"
+#   # --- HTTP / hostname extras (most are set by this role already) ---
+#   KC_HOSTNAME_ADMIN: "https://admin.example.com"   # separate admin URL
+#   KC_HTTP_RELATIVE_PATH: "/auth"     # serve under a sub-path
+#   # --- Database connection pool ---
+#   KC_DB_POOL_INITIAL_SIZE: "5"
+#   KC_DB_POOL_MAX_SIZE: "20"
+#   # --- Realm import on first start (mount the file via keycloak_extra_env
+#   #     plus your own volume) ---
+#   KC_SPI_ADMIN_REALM: master
+#
+# WARNING: do not override keys this role already manages via the templated
+# environment, or you will get duplicate/conflicting values. Reserved keys:
+#   KC_DB, KC_DB_URL_HOST, KC_DB_URL_DATABASE, KC_DB_USERNAME, KC_DB_PASSWORD,
+#   KC_HOSTNAME, KC_HTTP_ENABLED, KC_PROXY_HEADERS, KC_HEALTH_ENABLED,
+#   KC_METRICS_ENABLED, KC_BOOTSTRAP_ADMIN_USERNAME, KC_BOOTSTRAP_ADMIN_PASSWORD
+keycloak_extra_env: {}
+
+# Pull policy passed to docker compose ("missing", "always", "never").
+keycloak_image_pull_policy: missing

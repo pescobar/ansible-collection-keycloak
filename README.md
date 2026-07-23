@@ -73,24 +73,13 @@ so you can omit them.
 See [`playbooks/`](playbooks/) for runnable examples and each role's README for
 the full variable reference.
 
-## Exporting an existing realm
+## Seeding config from an existing realm
 
-[`playbooks/export_realm.yml`](playbooks/export_realm.yml) dumps the live
-configuration of an existing realm (realm settings, clients, groups, identity
-providers + mappers, realm keys, user profile) into a YAML file laid out with
-the `keycloak_cfg_*` variables, to bootstrap `keycloak_cfg`:
-
-```bash
-ansible-playbook pescobar/keycloak/playbooks/export_realm.yml \
-  -e kc_url=https://auth.example.com -e kc_realm=myapp \
-  -e kc_admin_password=... -e kc_export_dest=./myapp-keycloak_cfg.yml
-```
-
-The output is a **scaffold to review**, not a guaranteed drop-in: secrets are not
-recoverable (client secrets are masked, key private material is never returned),
-and values use Keycloak's REST representation (camelCase, plus server-managed
-fields) which you rename/prune to match the `keycloak_*` module options. See the
-playbook header for details.
+Already have a running Keycloak? You can generate the `keycloak_cfg_*` variables
+from an existing realm instead of writing them by hand — either from a native
+`kc.sh export` (preferred) or over the REST API. See
+[**Seed the variables from it**](roles/keycloak_cfg/README.md#already-have-a-running-keycloak-seed-the-variables-from-it)
+in the `keycloak_cfg` role README.
 
 ## Naming convention
 

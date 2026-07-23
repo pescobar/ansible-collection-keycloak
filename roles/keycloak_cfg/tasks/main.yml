@@ -102,6 +102,19 @@
   check_mode: false
   no_log: "{{ keycloak_cfg_no_log }}"
 
+# uri cannot emit a diff, so render one from the fetched vs declared profile.
+# Not no_log'd: a user profile is attribute metadata, not secrets — that is the
+# whole point of showing it under --diff.
+- name: Show pending realm user-profile changes
+  ansible.utils.fact_diff:
+    before: "{{ _kc_res.json | to_nice_yaml }}"
+    after: "{{ _kc_res._kc_item.profile | to_nice_yaml }}"
+  loop: "{{ _keycloak_cfg_profile_current.results }}"
+  loop_control:
+    loop_var: _kc_res
+    label: "{{ _kc_res._kc_item.realm }}"
+  when: _kc_res.json != _kc_res._kc_item.profile
+
 - name: Manage realm user profiles
   ansible.builtin.uri:
     url: "{{ keycloak_cfg_url }}/admin/realms/{{ _kc_res._kc_item.realm }}/users/profile"

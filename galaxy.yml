@@ -26,6 +26,9 @@ dependencies:
   # user profile is NOT applied through a community.general module (see the
   # keycloak_cfg role), so no newer floor is needed.
   community.general: ">=9.3.0"
+  # ansible.utils.fact_diff renders the user-profile --diff (uri cannot). Bundled
+  # with the ansible community package (ships with ansible 10.x).
+  ansible.utils: ">=2.0.0"
 repository: https://github.com/pescobar/ansible-collection-keycloak
 issues: https://github.com/pescobar/ansible-collection-keycloak/issues
 build_ignore:

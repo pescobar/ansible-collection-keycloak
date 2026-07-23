@@ -20,6 +20,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `keycloak_cfg`: lower the `community.general` floor back to `>=9.3.0` (the
   version bundled with ansible 10.3.0) now that no user-profile module is used.
 
+### Added
+
+- `keycloak_cfg`: render a before/after `--diff` of pending user-profile changes
+  via `ansible.utils.fact_diff` (the `uri` PUT that applies them cannot emit a
+  diff). Adds an `ansible.utils >= 2.0.0` dependency (bundled with the ansible
+  community package).
+
 ### Fixed
 
 - `keycloak_cfg`: give every `loop` its own `loop_var` (`_kc_item`) to silence the

@@ -80,6 +80,9 @@ playbooks/                 # deploy.yml, configure.yml, export_realm.yml
   is what ansible 10.3.0 bundles. The user profile is deliberately **not** applied
   through `keycloak_userprofile` (see below), so no newer floor is needed. Keep
   `galaxy.yml` and `requirements.yml` in sync.
+- `ansible.utils >= 2.0.0` (cfg) — only for `fact_diff`, which renders the user
+  profile `--diff` (the `uri` PUT that applies it cannot emit one). Bundled with
+  the ansible community package.
 
 ## Validating changes in this environment
 

@@ -3,3 +3,8 @@
 __pycache__/
 .vault_pass
 .env
+
+# Vim swapfiles
+*.swp
+*.swo
+*~

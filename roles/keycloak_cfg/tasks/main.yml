@@ -23,48 +23,54 @@
 
 - name: Manage realms
   community.general.keycloak_realm:
-  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_realms }}"
   loop_control:
-    label: "{{ item.realm | default(item.id) | default('realm') }}"
+    loop_var: _kc_item
+    label: "{{ _kc_item.realm | default(_kc_item.id) | default('realm') }}"
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage groups
   community.general.keycloak_group:
-  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_groups }}"
   loop_control:
-    label: "{{ item.realm | default('realm') }} / {{ item.name | default('group') }}"
+    loop_var: _kc_item
+    label: "{{ _kc_item.realm | default('realm') }} / {{ _kc_item.name | default('group') }}"
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage clients
   community.general.keycloak_client:
-  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_clients }}"
   loop_control:
-    label: "{{ item.realm | default('realm') }} / {{ item.client_id | default('client') }}"
+    loop_var: _kc_item
+    label: "{{ _kc_item.realm | default('realm') }} / {{ _kc_item.client_id | default('client') }}"
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage identity providers (and their mappers)
   community.general.keycloak_identity_provider:
-  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_identity_providers }}"
   loop_control:
-    label: "{{ item.realm | default('realm') }} / {{ item.alias | default('idp') }}"
+    loop_var: _kc_item
+    label: "{{ _kc_item.realm | default('realm') }} / {{ _kc_item.alias | default('idp') }}"
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage realm keys
   community.general.keycloak_realm_key:
-  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_realm_keys }}"
   loop_control:
-    label: "{{ item.parent_id | default('realm') }} / {{ item.name | default('key') }}"
+    loop_var: _kc_item
+    label: "{{ _kc_item.parent_id | default('realm') }} / {{ _kc_item.name | default('key') }}"
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage realm user profiles
   community.general.keycloak_userprofile:
-  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_user_profiles }}"
   loop_control:
-    label: "{{ item.parent_id | default('realm') }}"
+    loop_var: _kc_item
+    label: "{{ _kc_item.parent_id | default('realm') }}"
   no_log: "{{ keycloak_cfg_no_log }}"

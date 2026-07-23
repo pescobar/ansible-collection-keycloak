@@ -66,9 +66,11 @@ playbooks/                 # deploy.yml, configure.yml, export_realm.yml
 ## Dependencies
 
 - `community.docker >= 3.0.0` (deploy).
-- `community.general >= 9.4.0` (cfg) — the floor is 9.4.0 specifically for the
-  `keycloak_userprofile` module. Do not lower it without dropping user-profile
-  support. Keep `galaxy.yml` and `requirements.yml` in sync.
+- `community.general >= 9.5.0` (cfg) — the floor is 9.5.0 for the
+  `keycloak_userprofile` module. 9.4.0 introduced the module but shipped it with a
+  broken `parent` component filter (fixed in 9.5.0, PR #8923): against non-master
+  realms it read an empty profile and reported a perpetual "create" that never
+  applied. Do not lower the floor. Keep `galaxy.yml` and `requirements.yml` in sync.
 
 ## Validating changes in this environment
 

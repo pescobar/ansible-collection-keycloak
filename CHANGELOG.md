@@ -7,6 +7,23 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Changed
+
+- `keycloak_cfg`: raise the `community.general` floor to `>=9.5.0`. 9.4.0's
+  `keycloak_userprofile` had a broken `parent` component filter (PR #8923) that
+  made it non-idempotent against non-master realms — it read an empty profile and
+  reported a perpetual "create" that never actually applied.
+
+### Fixed
+
+- `keycloak_cfg`: give every `loop` its own `loop_var` (`_kc_item`) to silence the
+  "loop variable 'item' is already in use" warning when the role is invoked from a
+  looping context.
+- `gen_vars_from_export.py`: emit multiline PEM certificates/keys as YAML literal
+  block scalars (`|`), and snake_case user-profile validator ids
+  (`person-name-prohibited-characters` -> `person_name_prohibited_characters`) so
+  the generated vars apply without hand-editing.
+
 ### Added
 
 - `keycloak_cfg`: `files/gen_vars_from_export.py` — an offline converter that

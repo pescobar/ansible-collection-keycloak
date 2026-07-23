@@ -21,8 +21,10 @@ tags:
 # Collections this one depends on (installed automatically with the collection).
 dependencies:
   community.docker: ">=3.0.0"
-  # >=9.4.0 for the community.general.keycloak_userprofile module.
-  community.general: ">=9.4.0"
+  # >=9.5.0 for the community.general.keycloak_userprofile module: 9.4.0 shipped
+  # it with a broken `parent` component filter (PR #8923) that made it non-idempotent
+  # against non-master realms (empty read -> perpetual "create" that never applied).
+  community.general: ">=9.5.0"
 repository: https://github.com/pescobar/ansible-collection-keycloak
 issues: https://github.com/pescobar/ansible-collection-keycloak/issues
 build_ignore:

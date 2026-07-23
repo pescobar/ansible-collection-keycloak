@@ -97,6 +97,12 @@ playbook header for details.
 All variables are namespaced by role: `keycloak_deploy_*` for the deploy role,
 `keycloak_cfg_*` for the configure role.
 
+## Changelog
+
+See [`CHANGELOG.md`](CHANGELOG.md). This collection follows
+[Semantic Versioning](https://semver.org/); the current version is declared in
+[`galaxy.yml`](galaxy.yml).
+
 ## License
 
 MIT

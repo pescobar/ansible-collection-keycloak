@@ -104,19 +104,21 @@
 
 - name: Manage realm user profiles
   ansible.builtin.uri:
-    url: "{{ keycloak_cfg_url }}/admin/realms/{{ _kc_item.item.realm }}/users/profile"
+    url: "{{ keycloak_cfg_url }}/admin/realms/{{ _kc_res._kc_item.realm }}/users/profile"
     method: PUT
     headers:
       Authorization: "Bearer {{ _keycloak_cfg_token.json.access_token }}"
     body_format: json
-    body: "{{ _kc_item.item.profile }}"
+    body: "{{ _kc_res._kc_item.profile }}"
     status_code: [200, 204]
     validate_certs: "{{ keycloak_cfg_validate_certs }}"
+  # Loop over the GET results; each carries its source item under `_kc_item`
+  # (the fetch task's loop_var) and the live profile under `json`.
   loop: "{{ _keycloak_cfg_profile_current.results }}"
   loop_control:
-    loop_var: _kc_item
-    label: "{{ _kc_item.item.realm }}"
+    loop_var: _kc_res
+    label: "{{ _kc_res._kc_item.realm }}"
   # Idempotent: only PUT when the live profile differs from the declared one.
-  when: _kc_item.json != _kc_item.item.profile
+  when: _kc_res.json != _kc_res._kc_item.profile
   changed_when: true
   no_log: "{{ keycloak_cfg_no_log }}"

@@ -89,13 +89,24 @@ Ansible is **not installed** here, so validation is done with Python:
 
 There is no molecule/CI harness in the repo yet.
 
-## export_realm.yml
+## Seeding keycloak_cfg vars from an existing realm
 
-Reverse tool: reads a live realm via the admin API and writes `keycloak_cfg_*`
-vars. Output is a **scaffold to review**, not drop-in — secrets are not
-recoverable (client secrets masked, key private material never returned) and
-values are the Keycloak REST representation (camelCase + server-managed fields),
-which must be renamed/pruned to match the module options.
+Two reverse tools, both emitting flat `keycloak_cfg_*` YAML that is a
+**scaffold to review**, never a guaranteed drop-in. Secrets are never emitted in
+cleartext.
+
+- **Preferred — `roles/keycloak_cfg/files/gen_vars_from_export.py`** (offline).
+  Consumes a native `kc.sh export` JSON and does a *curated* camelCase→snake_case
+  map to module-native option names, turning every secret into a named
+  `vault_*` placeholder (client secrets, OIDC broker secrets, and realm-key
+  private keys — the last only exist in a native export, not over REST). The role
+  never calls it. Because `keycloak_cfg` is pure pass-through, the converter must
+  **only emit module-native keys** — do not inject annotation keys into items
+  (notes/omissions go in the header comment via the `NOTES` list, secrets via
+  `VAULT_VARS`). One realm in → one file out; multi-realm export lists are merged.
+- **Fallback — `playbooks/export_realm.yml`** (REST, no host access). Raw
+  representation dump (camelCase + server-managed fields) needing more manual
+  rename/prune; cannot recover realm-key private material.
 
 ## Commit conventions
 

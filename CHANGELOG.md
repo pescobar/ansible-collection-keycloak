@@ -7,6 +7,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+
+- `keycloak_cfg`: `files/gen_vars_from_export.py` — an offline converter that
+  turns a native `kc.sh export` realm JSON into flat `keycloak_cfg_*` variables
+  with module-native option names and named Vault placeholders for all secrets
+  (including realm-key private material, which the REST API never returns). The
+  REST-based `playbooks/export_realm.yml` remains as a no-host-access fallback.
+
 ## [1.0.0] - 2026-07-23
 
 First release as an Ansible collection. Converts the former standalone role into

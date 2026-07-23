@@ -26,14 +26,42 @@ resource. Because a `master`-realm admin can manage every realm in the instance,
 a single run can configure **multiple realms** — each realm/group/client item
 names its own target `realm`. The admin login is separate from the target realm.
 
-## Already have a running Keycloak? Start from an export
+## Already have a running Keycloak? Seed the variables from it
 
 If you already operate a Keycloak server, you don't have to write these variables
-by hand. The collection ships an auxiliary playbook,
-[`playbooks/export_realm.yml`](../../playbooks/export_realm.yml), that reads a
-live realm (realm settings, clients, groups, identity providers + mappers, realm
-keys and user profile) and writes a YAML file laid out with the `keycloak_cfg_*`
-variables:
+by hand. There are two seeding tools; both produce `keycloak_cfg_*` YAML you
+review and merge into your inventory. Both are **one-off starting points**, not
+guaranteed drop-ins — in particular, secrets are never emitted in cleartext.
+
+### Preferred: converter from a native `kc.sh export` (host access)
+
+[`roles/keycloak_cfg/files/gen_vars_from_export.py`](files/gen_vars_from_export.py)
+consumes a native realm export and emits the flat `keycloak_cfg_*` variables with
+**module-native option names** and **named Vault placeholders** for every secret
+(client secrets, OIDC broker secrets, and realm-key private keys — the last are
+*only* available from a native export, never over the REST API).
+
+```bash
+# 1. export the realm from the running server (needs container/host access)
+docker compose exec keycloak /opt/keycloak/bin/kc.sh export \
+    --dir /tmp/kc-export --realm myapp --users skip
+docker compose cp keycloak:/tmp/kc-export ./kc-export     # -> myapp-realm.json
+
+# 2. one file per realm (offline; the role never calls this)
+python3 roles/keycloak_cfg/files/gen_vars_from_export.py \
+    myapp-realm.json > group_vars/keycloak/myapp.yml
+
+# 3. review, then define the vault_* variables listed in the file header
+```
+
+The generated header lists exactly which `vault_*` variables to define and any
+items that were skipped/simplified (e.g. subgroups, client protocol mappers,
+uncommon options) — it emits a curated field subset, so glance over it.
+
+### Fallback: REST export playbook (no host access)
+
+When you can only reach the admin API, [`playbooks/export_realm.yml`](../../playbooks/export_realm.yml)
+reads a live realm over HTTP and writes the same `keycloak_cfg_*` layout:
 
 ```bash
 ansible-playbook pescobar/keycloak/playbooks/export_realm.yml \
@@ -41,11 +69,10 @@ ansible-playbook pescobar/keycloak/playbooks/export_realm.yml \
   -e kc_admin_password=... -e kc_export_dest=./myapp-keycloak_cfg.yml
 ```
 
-Use the result as a **starting point** — it is a scaffold to review, not a
-guaranteed drop-in: secrets are not exported (client secrets are masked and key
-private material is never returned), and values are Keycloak's REST
-representation (camelCase, plus server-managed fields) which you rename/prune to
-match the module options. See the playbook header for details.
+This needs more review: values are Keycloak's REST representation (camelCase, plus
+server-managed fields) which you rename/prune to match the module options, and
+realm-key private material cannot be recovered over REST. Prefer the converter
+above when you have host access.
 
 ## Role variables
 

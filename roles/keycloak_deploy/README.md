@@ -71,11 +71,15 @@ Commonly tuned optional variables:
         keycloak_deploy_db_password: "{{ vault_keycloak_db_password }}"
 ```
 
-Generate strong secrets, e.g.:
-```bash
-openssl rand -base64 24
-```
-and store them in an Ansible Vault file. Then:
+You **must** set `keycloak_deploy_admin_password` (the Keycloak bootstrap admin
+password) and `keycloak_deploy_db_password` (the PostgreSQL password) to real
+values — the role refuses to run while they hold their placeholder defaults.
+Any password works; if you'd like to pick a strong random one, you can generate
+it with e.g. `openssl rand -base64 24`.
+
+Because these are secrets, it is **recommended** (not required) to keep them in
+an [Ansible Vault](https://docs.ansible.com/ansible/latest/vault_guide/index.html)-encrypted
+file rather than in plaintext, and run with:
 ```bash
 ansible-playbook -i inventory playbook.yml --ask-vault-pass
 ```

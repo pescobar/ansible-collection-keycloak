@@ -26,6 +26,27 @@ resource. Because a `master`-realm admin can manage every realm in the instance,
 a single run can configure **multiple realms** — each realm/group/client item
 names its own target `realm`. The admin login is separate from the target realm.
 
+## Already have a running Keycloak? Start from an export
+
+If you already operate a Keycloak server, you don't have to write these variables
+by hand. The collection ships an auxiliary playbook,
+[`playbooks/export_realm.yml`](../../playbooks/export_realm.yml), that reads a
+live realm (realm settings, clients, groups, identity providers + mappers, realm
+keys and user profile) and writes a YAML file laid out with the `keycloak_cfg_*`
+variables:
+
+```bash
+ansible-playbook pescobar/keycloak/playbooks/export_realm.yml \
+  -e kc_url=https://auth.example.com -e kc_realm=myapp \
+  -e kc_admin_password=... -e kc_export_dest=./myapp-keycloak_cfg.yml
+```
+
+Use the result as a **starting point** — it is a scaffold to review, not a
+guaranteed drop-in: secrets are not exported (client secrets are masked and key
+private material is never returned), and values are Keycloak's REST
+representation (camelCase, plus server-managed fields) which you rename/prune to
+match the module options. See the playbook header for details.
+
 ## Role variables
 
 See [`defaults/main.yml`](defaults/main.yml) for the full list.

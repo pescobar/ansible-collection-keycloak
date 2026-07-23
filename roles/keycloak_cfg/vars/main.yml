@@ -1,0 +1,15 @@
+---
+# Internal vars (not intended to be overridden by users)
+
+# Common AUTHENTICATION parameters shared by every community.general.keycloak_*
+# module call. Merged into each resource definition via `combine`. Note this
+# contains only `auth_realm` (the realm we log in to — always the admin realm,
+# e.g. master); it intentionally carries NO `realm` key, so each resource keeps
+# its own target `realm` and one admin login can manage many realms.
+_keycloak_cfg_auth:
+  auth_keycloak_url: "{{ keycloak_cfg_url }}"
+  auth_realm: "{{ keycloak_cfg_admin_realm }}"
+  auth_client_id: "{{ keycloak_cfg_admin_client_id }}"
+  auth_username: "{{ keycloak_cfg_admin_user }}"
+  auth_password: "{{ keycloak_cfg_admin_password }}"
+  validate_certs: "{{ keycloak_cfg_validate_certs }}"

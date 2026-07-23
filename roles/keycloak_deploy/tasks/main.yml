@@ -1,0 +1,35 @@
+---
+# tasks file for ansible-role-keycloak
+
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - keycloak_deploy_hostname is defined and keycloak_deploy_hostname | length > 0
+      - keycloak_deploy_hostname != "auth.example.com"
+      - keycloak_deploy_acme_email is defined and keycloak_deploy_acme_email | length > 0
+      - keycloak_deploy_admin_password is defined and keycloak_deploy_admin_password | length > 0
+      - keycloak_deploy_admin_password != "changeme-admin"
+      - keycloak_deploy_db_password is defined and keycloak_deploy_db_password | length > 0
+      - keycloak_deploy_db_password != "changeme-db"
+    fail_msg: >-
+      You must set keycloak_deploy_hostname, keycloak_deploy_acme_email and override the
+      default admin/db passwords (keycloak_deploy_admin_password, keycloak_deploy_db_password)
+      before running this role.
+    quiet: true
+
+- name: Validate admin hostname options
+  ansible.builtin.assert:
+    that:
+      - keycloak_deploy_admin_hostname | length > 0
+    fail_msg: >-
+      keycloak_deploy_admin_hostname_allowed_ips is set but keycloak_deploy_admin_hostname is
+      empty. The IP restriction only applies to the separate admin hostname, so
+      set keycloak_deploy_admin_hostname as well (or clear the allowed-IPs list).
+    quiet: true
+  when: keycloak_deploy_admin_hostname_allowed_ips | length > 0
+
+- name: Verify Docker prerequisites
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Deploy the Keycloak + Caddy stack
+  ansible.builtin.import_tasks: deploy.yml

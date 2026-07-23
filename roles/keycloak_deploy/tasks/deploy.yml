@@ -12,7 +12,7 @@
 - name: Render the .env file (secrets)
   ansible.builtin.template:
     src: env.j2
-    dest: "{{ _keycloak_env_file }}"
+    dest: "{{ _keycloak_deploy_env_file }}"
     owner: "{{ keycloak_deploy_user }}"
     group: "{{ keycloak_deploy_group }}"
     mode: "0600"
@@ -22,7 +22,7 @@
 - name: Render the docker-compose file
   ansible.builtin.template:
     src: docker-compose.yml.j2
-    dest: "{{ _keycloak_compose_file }}"
+    dest: "{{ _keycloak_deploy_compose_file }}"
     owner: "{{ keycloak_deploy_user }}"
     group: "{{ keycloak_deploy_group }}"
     mode: "0640"
@@ -31,7 +31,7 @@
 - name: Render the Caddyfile
   ansible.builtin.template:
     src: Caddyfile.j2
-    dest: "{{ _keycloak_caddyfile }}"
+    dest: "{{ _keycloak_deploy_caddyfile }}"
     owner: "{{ keycloak_deploy_user }}"
     group: "{{ keycloak_deploy_group }}"
     mode: "0640"
@@ -39,10 +39,10 @@
 
 - name: Bring up the Keycloak + Caddy + PostgreSQL stack
   community.docker.docker_compose_v2:
-    project_name: "{{ keycloak_project_name }}"
+    project_name: "{{ keycloak_deploy_project_name }}"
     project_src: "{{ keycloak_deploy_dir }}"
     state: present
-    pull: "{{ keycloak_image_pull_policy }}"
+    pull: "{{ keycloak_deploy_image_pull_policy }}"
     remove_orphans: true
   register: _keycloak_compose_up
 

@@ -1,0 +1,32 @@
+---
+namespace: pescobar
+name: keycloak
+version: 1.0.0
+readme: README.md
+authors:
+  - pescobar
+description: >-
+  Deploy and configure Keycloak. Ships two roles: keycloak_deploy (Keycloak +
+  Caddy TLS reverse proxy + PostgreSQL via Docker Compose) and keycloak_configure
+  (manage realms, clients and users through the Keycloak admin API).
+license:
+  - MIT
+tags:
+  - keycloak
+  - caddy
+  - docker
+  - sso
+  - iam
+  - security
+# Collections this one depends on (installed automatically with the collection).
+dependencies:
+  community.docker: ">=3.0.0"
+  # >=9.4.0 for the community.general.keycloak_userprofile module.
+  community.general: ">=9.4.0"
+repository: https://github.com/pescobar/ansible-collection-keycloak
+issues: https://github.com/pescobar/ansible-collection-keycloak/issues
+build_ignore:
+  - .gitignore
+  - .github
+  - "*.retry"
+  - .vault_pass

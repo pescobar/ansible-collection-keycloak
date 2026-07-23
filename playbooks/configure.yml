@@ -1,0 +1,115 @@
+---
+# Example: configure realms, groups and clients on a running Keycloak.
+# Run with: ansible-playbook -i inventory pescobar/keycloak/playbooks/configure.yml --ask-vault-pass
+- name: Configure Keycloak realms and clients
+  hosts: keycloak
+  gather_facts: false
+  roles:
+    - role: pescobar.keycloak.keycloak_cfg
+      vars:
+        keycloak_cfg_url: "https://auth.example.com"
+        # Keep this in an Ansible Vault file, not in plain text:
+        keycloak_cfg_admin_password: "{{ vault_keycloak_admin_password }}"
+
+        keycloak_cfg_realms:
+          - realm: shop
+            enabled: true
+            display_name: "Shop"
+            state: present
+          - realm: intranet
+            enabled: true
+            state: present
+
+        keycloak_cfg_groups:
+          - realm: intranet
+            name: staff
+            state: present
+
+        keycloak_cfg_clients:
+          - realm: shop
+            client_id: shop-frontend
+            name: "Shop Frontend"
+            public_client: true
+            redirect_uris:
+              - "https://shop.example.com/*"
+            web_origins:
+              - "https://shop.example.com"
+            state: present
+          - realm: intranet
+            client_id: intranet-api
+            name: "Intranet API"
+            public_client: false
+            service_accounts_enabled: true
+            state: present
+
+        keycloak_cfg_identity_providers:
+          - realm: intranet
+            alias: corporate-oidc
+            display_name: "Corporate SSO"
+            provider_id: oidc
+            enabled: true
+            config:
+              clientId: "keycloak-broker"
+              clientSecret: "{{ vault_idp_client_secret }}"
+              authorizationUrl: "https://idp.example.com/authorize"
+              tokenUrl: "https://idp.example.com/token"
+              userInfoUrl: "https://idp.example.com/userinfo"
+              defaultScope: "openid email profile"
+            mappers:
+              - name: email
+                identityProviderMapper: oidc-user-attribute-idp-mapper
+                config:
+                  claim: email
+                  user.attribute: email
+                  syncMode: INHERIT
+              - name: staff-group
+                identityProviderMapper: oidc-advanced-group-idp-mapper
+                config:
+                  claims: '[{"key":"groups","value":"staff"}]'
+                  group: "/staff"
+                  syncMode: INHERIT
+            state: present
+
+        keycloak_cfg_realm_keys:
+          - parent_id: shop
+            name: rsa-imported
+            provider_id: rsa
+            force: true
+            config:
+              active: true
+              enabled: true
+              priority: 100
+              algorithm: RS256
+              private_key: "{{ vault_shop_realm_private_key }}"
+              certificate: "{{ vault_shop_realm_certificate }}"
+            state: present
+
+        keycloak_cfg_user_profiles:
+          - parent_id: shop
+            config:
+              kc_user_profile_config:
+                - unmanaged_attribute_policy: DISABLED
+                  attributes:
+                    - name: username
+                      displayName: "${username}"
+                      permissions:
+                        view: ["admin", "user"]
+                        edit: ["admin"]
+                    - name: email
+                      displayName: "${email}"
+                      required:
+                        roles: ["user"]
+                      permissions:
+                        view: ["admin", "user"]
+                        edit: ["admin", "user"]
+                    - name: department
+                      displayName: "Department"
+                      validations:
+                        length: { max: 255 }
+                      permissions:
+                        view: ["admin", "user"]
+                        edit: ["admin"]
+                  groups:
+                    - name: organization
+                      displayHeader: "Organization"
+            state: present

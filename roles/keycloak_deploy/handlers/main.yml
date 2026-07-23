@@ -3,8 +3,8 @@
 
 - name: Restart Keycloak stack
   community.docker.docker_compose_v2:
-    project_name: "{{ keycloak_project_name }}"
+    project_name: "{{ keycloak_deploy_project_name }}"
     project_src: "{{ keycloak_deploy_dir }}"
     state: restarted
-    pull: "{{ keycloak_image_pull_policy }}"
+    pull: "{{ keycloak_deploy_image_pull_policy }}"
     remove_orphans: true

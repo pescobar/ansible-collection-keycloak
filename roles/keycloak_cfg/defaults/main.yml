@@ -1,0 +1,182 @@
+---
+# defaults file for keycloak_cfg
+#
+# Configures a running Keycloak instance through its admin REST API (via the
+# community.general.keycloak_* modules): realms, groups and clients, declared
+# as data. It does NOT deploy Keycloak — pair it with the keycloak_deploy role
+# from this collection.
+
+# ----------------------------------------------------------------------------
+# Connection / authentication
+# ----------------------------------------------------------------------------
+# Base URL of the Keycloak server (no trailing slash, no /admin). Defaults to
+# the public hostname configured for keycloak_deploy when that variable is in
+# scope (e.g. both roles run in the same play with shared group_vars).
+keycloak_cfg_url: "https://{{ keycloak_deploy_hostname | default('localhost:8080') }}"
+
+# Realm to authenticate against and the client used for the admin API.
+keycloak_cfg_admin_realm: master
+keycloak_cfg_admin_client_id: admin-cli
+
+# Admin credentials. Default to the bootstrap admin created by keycloak_deploy
+# when those variables are in scope; otherwise set them explicitly (use Vault).
+keycloak_cfg_admin_user: "{{ keycloak_deploy_admin_user | default('admin') }}"
+keycloak_cfg_admin_password: "{{ keycloak_deploy_admin_password | default('') }}"
+
+# Verify the TLS certificate of keycloak_cfg_url. Set to false only when the
+# target uses a self-signed / staging certificate.
+keycloak_cfg_validate_certs: true
+
+# How long (seconds) to wait for Keycloak to answer before configuring it.
+keycloak_cfg_wait_timeout: 300
+
+# Hide task output that would otherwise include the admin password. Set to
+# false temporarily when you need to debug a failing resource.
+keycloak_cfg_no_log: true
+
+# ----------------------------------------------------------------------------
+# Desired state (declarative). Each list item is passed straight through to the
+# matching community.general.keycloak_* module, so any parameter that module
+# accepts is valid here. See:
+#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_realm_module.html
+#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_group_module.html
+#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_client_module.html
+# ----------------------------------------------------------------------------
+
+# Realms to manage. Example:
+# keycloak_cfg_realms:
+#   - realm: myapp
+#     enabled: true
+#     display_name: "My Application"
+#     login_theme: keycloak
+#     state: present
+keycloak_cfg_realms: []
+
+# Groups to manage. Example:
+# keycloak_cfg_groups:
+#   - realm: myapp
+#     name: administrators
+#     state: present
+keycloak_cfg_groups: []
+
+# Clients to manage. Example:
+# keycloak_cfg_clients:
+#   - realm: myapp
+#     client_id: myapp-frontend
+#     name: "MyApp Frontend"
+#     public_client: true
+#     redirect_uris:
+#       - "https://app.example.com/*"
+#     web_origins:
+#       - "https://app.example.com"
+#     state: present
+keycloak_cfg_clients: []
+
+# Identity providers (and their mappers) to manage. Each item is passed to
+# community.general.keycloak_identity_provider; the IdP's mappers are declared
+# inline via the `mappers` list, so this single loop configures both the IdP
+# and all its attribute/role/group mappers. See:
+#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_identity_provider_module.html
+# Example:
+# keycloak_cfg_identity_providers:
+#   - realm: myapp
+#     alias: my-oidc
+#     display_name: "Corporate SSO"
+#     provider_id: oidc
+#     enabled: true
+#     config:
+#       clientId: "keycloak-broker"
+#       clientSecret: "{{ vault_idp_client_secret }}"
+#       authorizationUrl: "https://idp.example.com/authorize"
+#       tokenUrl: "https://idp.example.com/token"
+#       userInfoUrl: "https://idp.example.com/userinfo"
+#       defaultScope: "openid email profile"
+#     mappers:
+#       - name: email
+#         identityProviderMapper: oidc-user-attribute-idp-mapper
+#         config:
+#           claim: email
+#           user.attribute: email
+#           syncMode: INHERIT
+#       - name: admins-group
+#         identityProviderMapper: oidc-advanced-group-idp-mapper
+#         config:
+#           claims: '[{"key":"groups","value":"admins"}]'
+#           group: "/administrators"
+#           syncMode: INHERIT
+#     state: present
+keycloak_cfg_identity_providers: []
+
+# Realm key providers (signing / encryption keys) to manage. Each item is passed
+# to community.general.keycloak_realm_key. The target realm is given by
+# `parent_id` (a key is a component whose parent is the realm), which is separate
+# from the admin `auth_realm`. See:
+#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_realm_key_module.html
+#
+# Caveat: Keycloak never returns the private key of an *imported* key, so the
+# module cannot detect drift for provider_id: rsa / rsa-enc / java-keystore.
+# Set `force: true` on such an item to push the value unconditionally. Generated
+# keys (rsa-generated, hmac-generated, aes-generated, ...) are unaffected.
+#
+# Example:
+# keycloak_cfg_realm_keys:
+#   - parent_id: myapp                 # target realm
+#     name: rsa-imported
+#     provider_id: rsa                 # imported RSA signing key
+#     force: true                      # imported keys are not drift-detectable
+#     config:
+#       active: true
+#       enabled: true
+#       priority: 100
+#       algorithm: RS256
+#       private_key: "{{ vault_myapp_realm_private_key }}"
+#       certificate: "{{ vault_myapp_realm_certificate }}"
+#     state: present
+#   - parent_id: myapp
+#     name: rsa-generated
+#     provider_id: rsa-generated       # Keycloak-generated fallback key
+#     config:
+#       active: false
+#       enabled: true
+#       priority: 90
+#     state: present
+keycloak_cfg_realm_keys: []
+
+# Declarative User Profile (Realm Settings -> User profile) per realm. Each item
+# is passed to community.general.keycloak_userprofile (added in community.general
+# 9.4.0). Like realm keys, the user profile is a realm component, so the target
+# realm is given by `parent_id`; the attribute/group definitions are declared
+# inline under config.kc_user_profile_config. There is one user profile per
+# realm. See:
+#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_userprofile_module.html
+# Example:
+# keycloak_cfg_user_profiles:
+#   - parent_id: myapp                 # target realm
+#     config:
+#       kc_user_profile_config:
+#         - unmanaged_attribute_policy: DISABLED
+#           attributes:
+#             - name: username
+#               displayName: "${username}"
+#               permissions:
+#                 view: ["admin", "user"]
+#                 edit: ["admin"]
+#             - name: email
+#               displayName: "${email}"
+#               required:
+#                 roles: ["user"]
+#               permissions:
+#                 view: ["admin", "user"]
+#                 edit: ["admin", "user"]
+#             - name: department
+#               displayName: "Department"
+#               validations:
+#                 length: { max: 255 }
+#               permissions:
+#                 view: ["admin", "user"]
+#                 edit: ["admin"]
+#           groups:
+#             - name: organization
+#               displayHeader: "Organization"
+#     state: present
+keycloak_cfg_user_profiles: []

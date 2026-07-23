@@ -1,0 +1,70 @@
+---
+# tasks file for keycloak_cfg
+
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - keycloak_cfg_url is defined and keycloak_cfg_url | length > 0
+      - keycloak_cfg_admin_password is defined and keycloak_cfg_admin_password | length > 0
+    fail_msg: >-
+      Set keycloak_cfg_url and keycloak_cfg_admin_password before running this
+      role (the admin password is empty by default).
+    quiet: true
+
+- name: Wait until Keycloak is reachable
+  ansible.builtin.uri:
+    url: "{{ keycloak_cfg_url }}/realms/{{ keycloak_cfg_admin_realm }}"
+    validate_certs: "{{ keycloak_cfg_validate_certs }}"
+    status_code: 200
+  register: _keycloak_cfg_ready
+  until: _keycloak_cfg_ready.status == 200
+  retries: "{{ (keycloak_cfg_wait_timeout | int // 10) | int }}"
+  delay: 10
+
+- name: Manage realms
+  community.general.keycloak_realm:
+  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  loop: "{{ keycloak_cfg_realms }}"
+  loop_control:
+    label: "{{ item.realm | default(item.id) | default('realm') }}"
+  no_log: "{{ keycloak_cfg_no_log }}"
+
+- name: Manage groups
+  community.general.keycloak_group:
+  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  loop: "{{ keycloak_cfg_groups }}"
+  loop_control:
+    label: "{{ item.realm | default('realm') }} / {{ item.name | default('group') }}"
+  no_log: "{{ keycloak_cfg_no_log }}"
+
+- name: Manage clients
+  community.general.keycloak_client:
+  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  loop: "{{ keycloak_cfg_clients }}"
+  loop_control:
+    label: "{{ item.realm | default('realm') }} / {{ item.client_id | default('client') }}"
+  no_log: "{{ keycloak_cfg_no_log }}"
+
+- name: Manage identity providers (and their mappers)
+  community.general.keycloak_identity_provider:
+  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  loop: "{{ keycloak_cfg_identity_providers }}"
+  loop_control:
+    label: "{{ item.realm | default('realm') }} / {{ item.alias | default('idp') }}"
+  no_log: "{{ keycloak_cfg_no_log }}"
+
+- name: Manage realm keys
+  community.general.keycloak_realm_key:
+  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  loop: "{{ keycloak_cfg_realm_keys }}"
+  loop_control:
+    label: "{{ item.parent_id | default('realm') }} / {{ item.name | default('key') }}"
+  no_log: "{{ keycloak_cfg_no_log }}"
+
+- name: Manage realm user profiles
+  community.general.keycloak_userprofile:
+  args: "{{ _keycloak_cfg_auth | combine(item) }}"
+  loop: "{{ keycloak_cfg_user_profiles }}"
+  loop_control:
+    label: "{{ item.parent_id | default('realm') }}"
+  no_log: "{{ keycloak_cfg_no_log }}"

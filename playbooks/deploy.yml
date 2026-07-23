@@ -1,0 +1,14 @@
+---
+# Example: deploy the Keycloak + Caddy + PostgreSQL stack.
+# Run with: ansible-playbook -i inventory pescobar/keycloak/playbooks/deploy.yml --ask-vault-pass
+- name: Deploy Keycloak behind Caddy
+  hosts: keycloak
+  become: true
+  roles:
+    - role: pescobar.keycloak.keycloak_deploy
+      vars:
+        keycloak_deploy_hostname: "auth.example.com"
+        keycloak_deploy_acme_email: "admin@example.com"
+        # Keep these in an Ansible Vault file, not in plain text:
+        keycloak_deploy_admin_password: "{{ vault_keycloak_admin_password }}"
+        keycloak_deploy_db_password: "{{ vault_keycloak_db_password }}"

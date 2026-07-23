@@ -1,98 +1,101 @@
-# ansible-role-keycloak
+# pescobar.keycloak
 
-Deploys [Keycloak](https://www.keycloak.org/) in **production mode** behind a
-[Caddy](https://caddyserver.com/) reverse proxy that terminates TLS with
-**automatic HTTPS (Let's Encrypt)**, backed by **PostgreSQL** — all as a single
-Docker Compose stack.
+An Ansible collection to **deploy** and **configure** [Keycloak](https://www.keycloak.org/).
+
+It ships two roles:
+
+| Role | Purpose |
+| --- | --- |
+| [`keycloak_deploy`](roles/keycloak_deploy/README.md) | Stand up Keycloak (production mode) behind a [Caddy](https://caddyserver.com/) TLS-terminating reverse proxy (automatic HTTPS via Let's Encrypt) with a PostgreSQL backend, as a Docker Compose stack. Does **not** install Docker. |
+| [`keycloak_cfg`](roles/keycloak_cfg/README.md) | Configure a running Keycloak instance declaratively (realms, groups, clients) through its admin REST API. One admin login can manage many realms. |
 
 ```
-                 :443 / :80
-   Internet ───────────────▶  Caddy  ──http──▶  Keycloak  ──▶  PostgreSQL
-                          (Let's Encrypt TLS)    (:8080)         (:5432)
+   keycloak_deploy                              keycloak_cfg
+   ──────────────                               ────────────
+   Caddy (TLS) ─▶ Keycloak ─▶ PostgreSQL   +    realms / groups / clients
+                                                via the admin REST API
 ```
-
-## What this role does and does not do
-
-- **Does:** verify Docker is present, render a `docker-compose.yml`, `Caddyfile`
-  and `.env`, and bring the stack up idempotently.
-- **Does NOT:** install Docker. Docker Engine and the Compose v2 plugin must
-  already be installed on the target host. The role runs preflight checks and
-  fails with a clear message if either is missing.
 
 ## Requirements
 
-- **Target host:** Docker Engine + `docker compose` (Compose v2 plugin) already
-  installed and running; the connecting user able to use the Docker socket.
-- **Controller:** the `community.docker` collection:
-- **DNS & firewall:** for Let's Encrypt, `keycloak_hostname` must resolve
-  publicly to the host and ports **80** and **443** must be reachable from the
-  internet. (Port 80 is needed for the ACME challenge and HTTP→HTTPS redirect.)
+- **Controller:** Ansible ≥ 2.15 and the collection dependencies
+  (`community.docker`, `community.general`), installed automatically with the
+  collection or via `requirements.yml`.
+- **Deploy target:** Docker Engine + the Compose v2 plugin already installed and
+  running (this collection does not install Docker).
+- **DNS & firewall:** for Let's Encrypt, the Keycloak hostname must resolve
+  publicly to the host with ports 80 and 443 reachable.
 
-## Role variables
+## Installation
 
-See [`defaults/main.yml`](defaults/main.yml) for the full list. The ones you
-**must** set:
+From a built tarball or a git source:
 
-| Variable | Description |
-| --- | --- |
-| `keycloak_hostname` | Public FQDN Keycloak is served on (cert is issued for it). |
-| `keycloak_acme_email` | Email for the Let's Encrypt account. |
-| `keycloak_admin_password` | Bootstrap admin password (use Vault). |
-| `keycloak_db_password` | PostgreSQL password (use Vault). |
+```bash
+ansible-galaxy collection install pescobar.keycloak
+# or, for the controller-side module dependencies:
+ansible-galaxy collection install -r requirements.yml
+```
 
-The role refuses to run while these still hold their placeholder defaults.
+## Quick start
 
-Commonly tuned optional variables:
-
-| Variable | Default | Description |
-| --- | --- | --- |
-| `keycloak_version` | `26.6.2-2` | Keycloak image tag. |
-| `caddy_version` | `2` | Caddy image tag. |
-| `postgres_version` | `18` | PostgreSQL image tag (tracks latest 18.x). |
-| `keycloak_deploy_dir` | `/opt/keycloak` | Where artifacts are rendered. |
-| `keycloak_acme_ca` | `""` | Set to the LE **staging** URL while testing to avoid rate limits. |
-| `keycloak_http_port` / `keycloak_https_port` | `80` / `443` | Host ports Caddy binds. |
-| `keycloak_extra_env` | `{}` | Extra `KC_*` env vars for Keycloak. |
-
-## Usage
-
-
-`playbook.yml`:
 ```yaml
-- hosts: keycloak
+- name: Deploy and configure Keycloak
+  hosts: keycloak
   become: true
   roles:
-    - role: ansible-role-keycloak
+    - role: pescobar.keycloak.keycloak_deploy
       vars:
-        keycloak_hostname: "auth.example.com"
-        keycloak_acme_email: "admin@example.com"
-        keycloak_admin_password: "{{ vault_keycloak_admin_password }}"
-        keycloak_db_password: "{{ vault_keycloak_db_password }}"
+        keycloak_deploy_hostname: "auth.example.com"
+        keycloak_deploy_acme_email: "admin@example.com"
+        keycloak_deploy_admin_password: "{{ vault_keycloak_admin_password }}"
+        keycloak_deploy_db_password: "{{ vault_keycloak_db_password }}"
+
+    - role: pescobar.keycloak.keycloak_cfg
+      vars:
+        keycloak_cfg_url: "https://auth.example.com"
+        keycloak_cfg_admin_password: "{{ vault_keycloak_admin_password }}"
+        keycloak_cfg_realms:
+          - realm: myapp
+            enabled: true
+            state: present
+        keycloak_cfg_clients:
+          - realm: myapp
+            client_id: myapp-frontend
+            public_client: true
+            redirect_uris: ["https://app.example.com/*"]
+            state: present
 ```
 
-Generate strong secrets, e.g.:
+When both roles run in the same play with shared variables, `keycloak_cfg`
+defaults its URL and admin credentials from the `keycloak_deploy_*` variables,
+so you can omit them.
+
+See [`playbooks/`](playbooks/) for runnable examples and each role's README for
+the full variable reference.
+
+## Exporting an existing realm
+
+[`playbooks/export_realm.yml`](playbooks/export_realm.yml) dumps the live
+configuration of an existing realm (realm settings, clients, groups, identity
+providers + mappers, realm keys, user profile) into a YAML file laid out with
+the `keycloak_cfg_*` variables, to bootstrap `keycloak_cfg`:
+
 ```bash
-openssl rand -base64 24
-```
-and store them in an Ansible Vault file. Then:
-```bash
-ansible-playbook -i inventory playbook.yml --ask-vault-pass
+ansible-playbook pescobar/keycloak/playbooks/export_realm.yml \
+  -e kc_url=https://auth.example.com -e kc_realm=myapp \
+  -e kc_admin_password=... -e kc_export_dest=./myapp-keycloak_cfg.yml
 ```
 
-## Notes & tips
+The output is a **scaffold to review**, not a guaranteed drop-in: secrets are not
+recoverable (client secrets are masked, key private material is never returned),
+and values use Keycloak's REST representation (camelCase, plus server-managed
+fields) which you rename/prune to match the `keycloak_*` module options. See the
+playbook header for details.
 
-- **Testing certificates:** set
-  `keycloak_acme_ca: "https://acme-staging-v02.api.letsencrypt.org/directory"`
-  to use Let's Encrypt staging while you iterate, then remove it for a trusted
-  production cert.
-- **Bootstrap admin:** `keycloak_admin_user`/`keycloak_admin_password` create
-  Keycloak 26's *temporary* bootstrap admin. Log in, create a permanent admin
-  account, and remove/rotate the bootstrap one.
-- **Reverse proxy:** Keycloak runs with `KC_PROXY_HEADERS=xforwarded` and
-  `KC_HOSTNAME=https://<hostname>`; Caddy forwards the original `Host` and
-  `X-Forwarded-*` headers so login/redirect URLs are correct.
-- **Data persistence:** PostgreSQL data and Caddy's certificates live in named
-  Docker volumes (`*_postgres_data`, `*_caddy_data`) and survive restarts.
+## Naming convention
+
+All variables are namespaced by role: `keycloak_deploy_*` for the deploy role,
+`keycloak_cfg_*` for the configure role.
 
 ## License
 

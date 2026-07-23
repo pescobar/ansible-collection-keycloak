@@ -35,6 +35,9 @@ services:
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
       # --- Hostname (TLS terminates at Caddy) ---
       KC_HOSTNAME: https://${KEYCLOAK_HOSTNAME}
+{% if keycloak_deploy_admin_hostname | length > 0 %}
+      KC_HOSTNAME_ADMIN: https://${KEYCLOAK_ADMIN_HOSTNAME}
+{% endif %}
       KC_HTTP_ENABLED: "true"
       # Trust the X-Forwarded-* headers Caddy sets so Keycloak builds correct
       # absolute URLs and sees the original client protocol/host.
@@ -44,7 +47,7 @@ services:
       KC_METRICS_ENABLED: "true"
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
-{% for key, value in keycloak_extra_env.items() %}
+{% for key, value in keycloak_deploy_extra_env.items() %}
       {{ key }}: "{{ value }}"
 {% endfor %}
     depends_on:
@@ -67,12 +70,15 @@ services:
       - "${CADDY_HTTPS_PORT}:443"
     environment:
       KEYCLOAK_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+{% if keycloak_deploy_admin_hostname | length > 0 %}
+      KEYCLOAK_ADMIN_HOSTNAME: ${KEYCLOAK_ADMIN_HOSTNAME}
+{% endif %}
       ACME_EMAIL: ${ACME_EMAIL}
-{% if keycloak_acme_ca | length > 0 %}
+{% if keycloak_deploy_acme_ca | length > 0 %}
       ACME_CA: ${ACME_CA}
 {% endif %}
     volumes:
-      - {{ _keycloak_caddyfile }}:/etc/caddy/Caddyfile:ro
+      - {{ _keycloak_deploy_caddyfile }}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

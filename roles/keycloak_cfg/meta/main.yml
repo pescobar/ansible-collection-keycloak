@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  role_name: keycloak_cfg
+  author: pescobar
+  description: >-
+    Configure a running Keycloak instance (realms, groups, clients) declaratively
+    through its admin REST API. Pairs with the keycloak_deploy role.
+  license: MIT
+  min_ansible_version: "2.15"
+  galaxy_tags:
+    - keycloak
+    - sso
+    - iam
+    - realm
+    - oidc
+
+dependencies: []
+
+# Requires the community.general collection (keycloak_* modules); it is declared
+# as a dependency of this collection in galaxy.yml.

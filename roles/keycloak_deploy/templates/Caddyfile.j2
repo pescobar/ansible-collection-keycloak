@@ -1,0 +1,51 @@
+{{ ansible_managed | comment }}
+# Caddy reverse proxy with automatic HTTPS (Let's Encrypt) in front of Keycloak.
+# Rendered by Ansible. Do not edit by hand; changes will be overwritten.
+
+{
+	email {$ACME_EMAIL}
+{% if keycloak_deploy_acme_ca | length > 0 %}
+	acme_ca {$ACME_CA}
+{% endif %}
+}
+
+# Shared reverse-proxy config for every hostname Keycloak is served on.
+(keycloak_proxy) {
+	encode zstd gzip
+
+	reverse_proxy keycloak:8080 {
+		# Preserve the original host/proto so Keycloak (KC_PROXY_HEADERS=xforwarded)
+		# can reconstruct correct absolute URLs.
+		header_up Host {host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
+}
+
+{$KEYCLOAK_HOSTNAME} {
+	import keycloak_proxy
+}
+{% if keycloak_deploy_admin_hostname | length > 0 %}
+{% if keycloak_deploy_admin_hostname_allowed_ips is string %}
+{% set _admin_allowed_ips = [keycloak_deploy_admin_hostname_allowed_ips] if keycloak_deploy_admin_hostname_allowed_ips | length > 0 else [] %}
+{% else %}
+{% set _admin_allowed_ips = keycloak_deploy_admin_hostname_allowed_ips %}
+{% endif %}
+
+# Separate admin console hostname (Caddy provisions its own cert for this name).
+{$KEYCLOAK_ADMIN_HOSTNAME} {
+{% if _admin_allowed_ips | length > 0 %}
+	# Allow the admin console only from these source subnets; everyone else
+	# gets a 403 at the edge before reaching Keycloak.
+	@admin_denied not remote_ip {{ _admin_allowed_ips | join(' ') }}
+	handle @admin_denied {
+		respond "Forbidden" 403
+	}
+	handle {
+		import keycloak_proxy
+	}
+{% else %}
+	import keycloak_proxy
+{% endif %}
+}
+{% endif %}

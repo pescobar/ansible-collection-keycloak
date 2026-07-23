@@ -227,25 +227,17 @@ def convert(realm_rep: dict, out: dict) -> None:
         })
 
     # --- declarative user profile ---
-    for comp in comps.get("org.keycloak.userprofile.UserProfileProvider", []) or []:
-        raw = comp.get("config", {}).get("kc.user.profile.config")
-        if raw:
-            cfg = _profile_snake_validations(json.loads(_first(raw)))
-            out["keycloak_cfg_user_profiles"].append({
-                "parent_id": realm,
-                "config": {"kc_user_profile_config": [cfg]},
-                "state": "present",
-            })
-
-
-def _profile_snake_validations(cfg: dict) -> dict:
-    # Keycloak stores validator ids kebab-case (person-name-prohibited-characters);
-    # keycloak_userprofile expects them snake_case (person_name_prohibited_characters).
-    for attr in cfg.get("attributes", []) or []:
-        val = attr.get("validations")
-        if isinstance(val, dict):
-            attr["validations"] = {k.replace("-", "_"): v for k, v in val.items()}
-    return cfg
+    # The stored kc.user.profile.config JSON *is* the exact representation the
+    # /admin/realms/{realm}/users/profile REST endpoint accepts (camelCase keys,
+    # kebab-case validator ids), which is how the keycloak_cfg role applies it.
+    # Emit it verbatim; there is one effective profile per realm.
+    up_comps = comps.get("org.keycloak.userprofile.UserProfileProvider", []) or []
+    raw = up_comps[0].get("config", {}).get("kc.user.profile.config") if up_comps else None
+    if raw:
+        out["keycloak_cfg_user_profiles"].append({
+            "realm": realm,
+            "profile": json.loads(_first(raw)),
+        })
 
 
 def main() -> None:

@@ -66,11 +66,57 @@
     label: "{{ _kc_item.parent_id | default('realm') }} / {{ _kc_item.name | default('key') }}"
   no_log: "{{ keycloak_cfg_no_log }}"
 
-- name: Manage realm user profiles
-  community.general.keycloak_userprofile:
-  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
+# Declarative user profile. On Keycloak 24+ the effective profile is served by
+# the dedicated /admin/realms/{realm}/users/profile endpoint, NOT the /components
+# API that community.general.keycloak_userprofile writes to — on KC 26 that module
+# silently creates ignored duplicate components and never updates the live profile.
+# So manage it directly over REST: token -> GET current -> PUT only when it differs.
+- name: Get an admin token for the user-profile API
+  ansible.builtin.uri:
+    url: "{{ keycloak_cfg_url }}/realms/{{ keycloak_cfg_admin_realm }}/protocol/openid-connect/token"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      client_id: "{{ keycloak_cfg_admin_client_id }}"
+      username: "{{ keycloak_cfg_admin_user }}"
+      password: "{{ keycloak_cfg_admin_password }}"
+    validate_certs: "{{ keycloak_cfg_validate_certs }}"
+  register: _keycloak_cfg_token
+  when: keycloak_cfg_user_profiles | length > 0
+  check_mode: false
+  no_log: "{{ keycloak_cfg_no_log }}"
+
+- name: Fetch the current realm user profiles
+  ansible.builtin.uri:
+    url: "{{ keycloak_cfg_url }}/admin/realms/{{ _kc_item.realm }}/users/profile"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _keycloak_cfg_token.json.access_token }}"
+    validate_certs: "{{ keycloak_cfg_validate_certs }}"
   loop: "{{ keycloak_cfg_user_profiles }}"
   loop_control:
     loop_var: _kc_item
-    label: "{{ _kc_item.parent_id | default('realm') }}"
+    label: "{{ _kc_item.realm }}"
+  register: _keycloak_cfg_profile_current
+  check_mode: false
+  no_log: "{{ keycloak_cfg_no_log }}"
+
+- name: Manage realm user profiles
+  ansible.builtin.uri:
+    url: "{{ keycloak_cfg_url }}/admin/realms/{{ _kc_item.item.realm }}/users/profile"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ _keycloak_cfg_token.json.access_token }}"
+    body_format: json
+    body: "{{ _kc_item.item.profile }}"
+    status_code: [200, 204]
+    validate_certs: "{{ keycloak_cfg_validate_certs }}"
+  loop: "{{ _keycloak_cfg_profile_current.results }}"
+  loop_control:
+    loop_var: _kc_item
+    label: "{{ _kc_item.item.realm }}"
+  # Idempotent: only PUT when the live profile differs from the declared one.
+  when: _kc_item.json != _kc_item.item.profile
+  changed_when: true
   no_log: "{{ keycloak_cfg_no_log }}"

@@ -142,41 +142,34 @@ keycloak_cfg_identity_providers: []
 #     state: present
 keycloak_cfg_realm_keys: []
 
-# Declarative User Profile (Realm Settings -> User profile) per realm. Each item
-# is passed to community.general.keycloak_userprofile (added in community.general
-# 9.4.0). Like realm keys, the user profile is a realm component, so the target
-# realm is given by `parent_id`; the attribute/group definitions are declared
-# inline under config.kc_user_profile_config. There is one user profile per
-# realm. See:
-#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_userprofile_module.html
+# Declarative User Profile (Realm Settings -> User profile) per realm. There is
+# one effective profile per realm. This is NOT applied through
+# community.general.keycloak_userprofile: on Keycloak 24+ the live profile is
+# served by the dedicated /admin/realms/{realm}/users/profile endpoint, and that
+# module still writes to the legacy /components API (on KC 26 it creates ignored
+# duplicate components and never updates the real profile). The role instead PUTs
+# `profile` straight to /users/profile via ansible.builtin.uri, so `profile` is
+# the raw Keycloak profile JSON (camelCase keys, kebab-case validator ids) — the
+# exact shape returned by a GET on that endpoint or found in a realm export under
+# components' kc.user.profile.config. gen_vars_from_export.py emits it verbatim.
 # Example:
 # keycloak_cfg_user_profiles:
-#   - parent_id: myapp                 # target realm
-#     config:
-#       kc_user_profile_config:
-#         - unmanaged_attribute_policy: DISABLED
-#           attributes:
-#             - name: username
-#               displayName: "${username}"
-#               permissions:
-#                 view: ["admin", "user"]
-#                 edit: ["admin"]
-#             - name: email
-#               displayName: "${email}"
-#               required:
-#                 roles: ["user"]
-#               permissions:
-#                 view: ["admin", "user"]
-#                 edit: ["admin", "user"]
-#             - name: department
-#               displayName: "Department"
-#               validations:
-#                 length: { max: 255 }
-#               permissions:
-#                 view: ["admin", "user"]
-#                 edit: ["admin"]
-#           groups:
-#             - name: organization
-#               displayHeader: "Organization"
-#     state: present
+#   - realm: myapp                     # target realm
+#     profile:
+#       unmanagedAttributePolicy: DISABLED
+#       attributes:
+#         - name: username
+#           displayName: "${username}"
+#           permissions: { view: ["admin", "user"], edit: ["admin"] }
+#         - name: email
+#           displayName: "${email}"
+#           required: { roles: ["user"] }
+#           permissions: { view: ["admin", "user"], edit: ["admin", "user"] }
+#         - name: department
+#           displayName: "Department"
+#           validations: { length: { max: 255 } }
+#           permissions: { view: ["admin", "user"], edit: ["admin"] }
+#       groups:
+#         - name: organization
+#           displayHeader: "Organization"
 keycloak_cfg_user_profiles: []

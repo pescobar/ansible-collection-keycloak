@@ -9,10 +9,16 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
-- `keycloak_cfg`: raise the `community.general` floor to `>=9.5.0`. 9.4.0's
-  `keycloak_userprofile` had a broken `parent` component filter (PR #8923) that
-  made it non-idempotent against non-master realms — it read an empty profile and
-  reported a perpetual "create" that never actually applied.
+- `keycloak_cfg`: apply the declarative user profile through the dedicated
+  `/admin/realms/{realm}/users/profile` REST endpoint (`ansible.builtin.uri`,
+  idempotent GET/compare/PUT) instead of `community.general.keycloak_userprofile`.
+  On Keycloak 24+ that module writes the legacy `/components` API, which KC 26
+  ignores — it creates duplicate orphan components and never updates the live
+  profile. **Breaking:** `keycloak_cfg_user_profiles` items are now
+  `{realm, profile}` where `profile` is the raw Keycloak profile JSON, replacing
+  the old `{parent_id, config: {kc_user_profile_config: [...]}, state}` shape.
+- `keycloak_cfg`: lower the `community.general` floor back to `>=9.3.0` (the
+  version bundled with ansible 10.3.0) now that no user-profile module is used.
 
 ### Fixed
 
@@ -20,9 +26,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   "loop variable 'item' is already in use" warning when the role is invoked from a
   looping context.
 - `gen_vars_from_export.py`: emit multiline PEM certificates/keys as YAML literal
-  block scalars (`|`), and snake_case user-profile validator ids
-  (`person-name-prohibited-characters` -> `person_name_prohibited_characters`) so
-  the generated vars apply without hand-editing.
+  block scalars (`|`), and emit user profiles as raw `{realm, profile}` JSON that
+  the role PUTs verbatim to `/users/profile`.
 
 ### Added
 

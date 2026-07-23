@@ -38,10 +38,19 @@ playbooks/                 # deploy.yml, configure.yml, export_realm.yml
   `keycloak_cfg_*` list is `_keycloak_cfg_auth | combine(item)` and handed to the
   matching `community.general.keycloak_*` module via `args:`. Therefore list items
   use the **module's native parameter names** — do not invent role-specific
-  aliases. This is why realm keys and user profiles use `parent_id` (they are
-  Keycloak *components*) while realms/groups/clients/idps use `realm`. A past
-  decision explicitly kept `parent_id` rather than normalizing to `realm`, to stay
-  1:1 with the module docs.
+  aliases. This is why realm keys use `parent_id` (they are Keycloak *components*)
+  while realms/groups/clients/idps use `realm`. A past decision explicitly kept
+  `parent_id` rather than normalizing to `realm`, to stay 1:1 with the module docs.
+- **User profiles are the one exception to the pass-through.** They are applied by
+  `ansible.builtin.uri` PUTting `keycloak_cfg_user_profiles[].profile` straight to
+  `/admin/realms/{realm}/users/profile`, not via `keycloak_userprofile`. On
+  Keycloak 24+ that endpoint is the live profile store; the module still writes the
+  legacy `/components` API, which KC 26 ignores (it creates duplicate components and
+  never updates the effective profile — verified: three orphan components, profile
+  unchanged). So the item shape is `{realm, profile}` where `profile` is the raw
+  Keycloak profile JSON (camelCase keys, kebab-case validator ids), applied
+  idempotently (GET, compare, PUT only on diff). Do not "fix" this back to the
+  module.
 - **`_keycloak_cfg_auth` carries `auth_realm` (login realm, e.g. master) but no
   `realm` key**, so one admin login manages many realms; each item names its own
   target realm.
@@ -66,11 +75,11 @@ playbooks/                 # deploy.yml, configure.yml, export_realm.yml
 ## Dependencies
 
 - `community.docker >= 3.0.0` (deploy).
-- `community.general >= 9.5.0` (cfg) — the floor is 9.5.0 for the
-  `keycloak_userprofile` module. 9.4.0 introduced the module but shipped it with a
-  broken `parent` component filter (fixed in 9.5.0, PR #8923): against non-master
-  realms it read an empty profile and reported a perpetual "create" that never
-  applied. Do not lower the floor. Keep `galaxy.yml` and `requirements.yml` in sync.
+- `community.general >= 9.3.0` (cfg) — supplies the
+  `keycloak_realm`/`group`/`client`/`identity_provider`/`realm_key` modules. 9.3.0
+  is what ansible 10.3.0 bundles. The user profile is deliberately **not** applied
+  through `keycloak_userprofile` (see below), so no newer floor is needed. Keep
+  `galaxy.yml` and `requirements.yml` in sync.
 
 ## Validating changes in this environment
 

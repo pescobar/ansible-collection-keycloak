@@ -21,10 +21,11 @@ tags:
 # Collections this one depends on (installed automatically with the collection).
 dependencies:
   community.docker: ">=3.0.0"
-  # >=9.5.0 for the community.general.keycloak_userprofile module: 9.4.0 shipped
-  # it with a broken `parent` component filter (PR #8923) that made it non-idempotent
-  # against non-master realms (empty read -> perpetual "create" that never applied).
-  community.general: ">=9.5.0"
+  # community.general provides the keycloak_realm/group/client/identity_provider/
+  # realm_key modules. >=9.3.0 is the version bundled with ansible 10.3.0; the
+  # user profile is NOT applied through a community.general module (see the
+  # keycloak_cfg role), so no newer floor is needed.
+  community.general: ">=9.3.0"
 repository: https://github.com/pescobar/ansible-collection-keycloak
 issues: https://github.com/pescobar/ansible-collection-keycloak/issues
 build_ignore:

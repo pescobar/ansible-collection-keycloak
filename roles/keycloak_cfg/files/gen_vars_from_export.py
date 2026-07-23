@@ -40,6 +40,15 @@ try:
 except ImportError:
     sys.exit("PyYAML required: pip install pyyaml")
 
+
+def _str_representer(dumper, data):
+    # Multiline strings (PEM certs / keys) -> literal block scalar, no quotes.
+    style = "|" if "\n" in data else None
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+
+
+yaml.add_representer(str, _str_representer, Dumper=yaml.SafeDumper)
+
 # Keycloak built-in clients we never want to manage.
 BUILTIN_CLIENTS = ("account", "account-console", "admin-cli", "broker",
                    "realm-management", "security-admin-console")

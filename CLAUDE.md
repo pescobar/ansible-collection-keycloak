@@ -100,10 +100,12 @@ cleartext.
   map to module-native option names, turning every secret into a named
   `vault_*` placeholder (client secrets, OIDC broker secrets, and realm-key
   private keys — the last only exist in a native export, not over REST). The role
-  never calls it. Because `keycloak_cfg` is pure pass-through, the converter must
-  **only emit module-native keys** — do not inject annotation keys into items
-  (notes/omissions go in the header comment via the `NOTES` list, secrets via
-  `VAULT_VARS`). One realm in → one file out; multi-realm export lists are merged.
+  never calls it. `--with-secrets` inlines real secret values instead (warns on
+  stderr; header flags them via `SECRETS_INLINED`). Because `keycloak_cfg` is pure
+  pass-through, the converter must **only emit module-native keys** — do not
+  inject annotation keys into items (notes/omissions go in the header comment via
+  the `NOTES` list, secrets via `VAULT_VARS` / `SECRETS_INLINED`). One realm in →
+  one file out; multi-realm export lists are merged.
 - **Fallback — `playbooks/export_realm.yml`** (REST, no host access). Raw
   representation dump (camelCase + server-managed fields) needing more manual
   rename/prune; cannot recover realm-key private material.

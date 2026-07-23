@@ -58,6 +58,21 @@ The generated header lists exactly which `vault_*` variables to define and any
 items that were skipped/simplified (e.g. subgroups, client protocol mappers,
 uncommon options) — it emits a curated field subset, so glance over it.
 
+By default no real secrets are written. Pass `--with-secrets` to inline the
+actual values (client secrets, OIDC broker secrets, realm-key private keys)
+instead of placeholders — handy for seeding, but the file then holds **plaintext
+secrets**, so encrypt it and never commit it as-is:
+
+```bash
+python3 roles/keycloak_cfg/files/gen_vars_from_export.py --with-secrets \
+    myapp-realm.json > myapp.yml
+ansible-vault encrypt myapp.yml
+```
+
+In this mode the tool warns on stderr and the file header flags that it contains
+plaintext secrets, listing each one by the Vault variable name it should be moved
+to — so it is obvious which values to migrate.
+
 ### Fallback: REST export playbook (no host access)
 
 When you can only reach the admin API, [`playbooks/export_realm.yml`](../../playbooks/export_realm.yml)

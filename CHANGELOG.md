@@ -14,6 +14,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   with module-native option names and named Vault placeholders for all secrets
   (including realm-key private material, which the REST API never returns). The
   REST-based `playbooks/export_realm.yml` remains as a no-host-access fallback.
+  A `--with-secrets` flag inlines real secret values instead of placeholders;
+  in that mode the tool warns on stderr and the output header flags the plaintext
+  secrets, listing each by the Vault variable name it should be moved to.
 
 ## [1.0.0] - 2026-07-23
 

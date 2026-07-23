@@ -3,8 +3,13 @@
 
 ONE-OFF, OFFLINE convenience. Reads a ``kc.sh export`` realm JSON and emits the
 flat ``keycloak_cfg_*`` variables for that realm, ready to drop into group_vars
-for the keycloak_cfg role. Secrets and private keys are replaced with Ansible
-Vault placeholders — this never prints real secret material.
+for the keycloak_cfg role. By default, secrets and private keys are replaced with
+Ansible Vault placeholders — the default output never contains real secrets.
+
+Pass ``--with-secrets`` to emit the real secret values inline instead (client
+secrets, OIDC broker secrets and realm-key private keys). This is a convenience
+for seeding, but the output then contains PLAINTEXT secrets: encrypt it
+(``ansible-vault encrypt``) and never commit it as-is.
 
 Unlike the REST-based playbooks/export_realm.yml (which needs only admin API
 access but produces a raw, review-heavy scaffold), this consumes the native
@@ -26,6 +31,7 @@ Then, one file per realm:
 A multi-realm export file (a JSON list of realms) is also accepted; its realms
 are merged into the same flat lists.
 """
+import argparse
 import json
 import sys
 
@@ -86,14 +92,31 @@ VAULT_VARS = set()
 # Kept out of the emitted data so every item stays a valid module argument set.
 NOTES = []
 
+# When True, emit real secret values instead of vault_* placeholders (set from
+# the --with-secrets flag). Default False keeps secrets out of the output.
+INCLUDE_SECRETS = False
+
+# In --with-secrets mode, the suggested Vault var name for each inlined secret,
+# reported in the header so it is obvious which values are secrets to move out.
+SECRETS_INLINED = set()
+
 
 def _slug(name: str) -> str:
     return "".join(c if c.isalnum() else "_" for c in str(name))
 
 
-def _vault(var: str) -> str:
-    VAULT_VARS.add(var)
-    return "{{ %s }}" % var
+def _secret(real, vault_var: str):
+    """Real secret value when --with-secrets, else a named vault placeholder.
+
+    Either way the secret is tracked by the ``vault_var`` name it should map to,
+    reported in the header (as a placeholder to define, or as an inlined
+    plaintext value to move into Vault).
+    """
+    if INCLUDE_SECRETS:
+        SECRETS_INLINED.add(vault_var)
+        return real if real is not None else ""
+    VAULT_VARS.add(vault_var)
+    return "{{ %s }}" % vault_var
 
 
 def _first(v, default=""):
@@ -138,7 +161,7 @@ def convert(realm_rep: dict, out: dict) -> None:
         if c.get("attributes"):
             item["attributes"] = c["attributes"]
         if not c.get("publicClient", False):
-            item["secret"] = _vault("vault_kc_client_secret_%s" % _slug(cid))
+            item["secret"] = _secret(c.get("secret"), "vault_kc_client_secret_%s" % _slug(cid))
         item["state"] = "present"
         out["keycloak_cfg_clients"].append(item)
 
@@ -152,8 +175,9 @@ def convert(realm_rep: dict, out: dict) -> None:
         })
     for idp in realm_rep.get("identityProviders", []) or []:
         cfg = dict(idp.get("config", {}) or {})
-        if "clientSecret" in cfg:  # OIDC broker secret -> vault
-            cfg["clientSecret"] = _vault("vault_kc_idp_%s_client_secret" % _slug(idp["alias"]))
+        if "clientSecret" in cfg:  # OIDC broker secret
+            cfg["clientSecret"] = _secret(
+                cfg["clientSecret"], "vault_kc_idp_%s_client_secret" % _slug(idp["alias"]))
         item = {
             "realm": realm,
             "alias": idp["alias"],
@@ -182,7 +206,8 @@ def convert(realm_rep: dict, out: dict) -> None:
             # imported keys are not drift-detectable; force re-applies the value
             "force": True,
             "config": {
-                "private_key": _vault("vault_kc_%s_%s_private_key" % (_slug(realm), _slug(name))),
+                "private_key": _secret(_first(cfg.get("privateKey")),
+                                       "vault_kc_%s_%s_private_key" % (_slug(realm), _slug(name))),
                 "certificate": _first(cfg.get("certificate")),
                 "active": _first(cfg.get("active"), "true") == "true",
                 "enabled": _first(cfg.get("enabled"), "true") == "true",
@@ -203,8 +228,24 @@ def convert(realm_rep: dict, out: dict) -> None:
             })
 
 
-def main(path: str) -> None:
-    with open(path) as f:
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Seed keycloak_cfg variables from a Keycloak realm export.")
+    parser.add_argument("export_json",
+                        help="path to a kc.sh export realm JSON (or a JSON list of realms)")
+    parser.add_argument("--with-secrets", action="store_true",
+                        help="emit real secret values instead of vault_* placeholders "
+                             "(DANGER: writes PLAINTEXT secrets to the output)")
+    args = parser.parse_args()
+
+    global INCLUDE_SECRETS
+    INCLUDE_SECRETS = args.with_secrets
+    if INCLUDE_SECRETS:
+        sys.stderr.write(
+            "WARNING: --with-secrets set: output contains PLAINTEXT secrets. "
+            "Encrypt it (ansible-vault encrypt) and do not commit it as-is.\n")
+
+    with open(args.export_json) as f:
         data = json.load(f)
     realms = data if isinstance(data, list) else [data]
 
@@ -227,13 +268,23 @@ def main(path: str) -> None:
     print("# Generated by gen_vars_from_export.py from realm(s): %s" % names)
     print("#")
     print("# SCAFFOLD — review before applying with the keycloak_cfg role:")
-    print("#  * Fill the vault_* variables below (kept out of this file).")
+    if INCLUDE_SECRETS:
+        print("#  * WARNING: contains PLAINTEXT secrets (--with-secrets). Encrypt")
+        print("#    this file (ansible-vault encrypt) and do NOT commit it as-is.")
+    else:
+        print("#  * Fill the vault_* variables below (kept out of this file).")
     print("#  * Curated field subset: uncommon options and client protocol")
     print("#    mappers are omitted — add them by hand if you need them.")
     if VAULT_VARS:
         print("#")
         print("# Vault variables to define:")
         for v in sorted(VAULT_VARS):
+            print("#   %s" % v)
+    if SECRETS_INLINED:
+        print("#")
+        print("# >>> PLAINTEXT SECRETS below — move each value into Vault. The")
+        print("#     suggested variable name for each secret is:")
+        for v in sorted(SECRETS_INLINED):
             print("#   %s" % v)
     if NOTES:
         print("#")
@@ -245,6 +296,4 @@ def main(path: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    main(sys.argv[1])
+    main()

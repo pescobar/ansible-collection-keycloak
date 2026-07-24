@@ -146,6 +146,9 @@ def convert(realm_rep: dict, out: dict) -> None:
 
     # --- realm settings ---
     realm_item = {"realm": realm}
+    # keycloak_realm requires `id` when creating a realm (a from-scratch deploy);
+    # Keycloak's realm id equals the realm name unless the export says otherwise.
+    realm_item["id"] = realm_rep.get("id", realm)
     _pick(realm_rep, REALM_FIELDS, realm_item)
     if realm_rep.get("attributes"):
         realm_item["attributes"] = realm_rep["attributes"]

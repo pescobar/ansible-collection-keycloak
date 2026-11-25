@@ -109,6 +109,7 @@ See [`defaults/main.yml`](defaults/main.yml) for the full list.
 | `keycloak_cfg_identity_providers` | `[]` | List of identity provider definitions, each with inline `mappers`. |
 | `keycloak_cfg_realm_keys` | `[]` | List of realm key-provider definitions (signing / encryption keys). |
 | `keycloak_cfg_user_profiles` | `[]` | List of per-realm declarative User Profile definitions. |
+| `keycloak_cfg_required_actions` | `[]` | Per-realm Authentication → Required actions (`community.general.keycloak_authentication_required_actions`). Turn one off with `enabled: false`; `state: absent` unregisters it instead. |
 
 Each item in `keycloak_cfg_realms` / `keycloak_cfg_groups` / `keycloak_cfg_clients`
 / `keycloak_cfg_identity_providers` / `keycloak_cfg_realm_keys` /

@@ -66,6 +66,15 @@
     label: "{{ _kc_item.parent_id | default('realm') }} / {{ _kc_item.name | default('key') }}"
   no_log: "{{ keycloak_cfg_no_log }}"
 
+- name: Manage authentication required actions
+  community.general.keycloak_authentication_required_actions:
+  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
+  loop: "{{ keycloak_cfg_required_actions }}"
+  loop_control:
+    loop_var: _kc_item
+    label: "{{ _kc_item.realm | default('realm') }}"
+  no_log: "{{ keycloak_cfg_no_log }}"
+
 # Declarative user profile. On Keycloak 24+ the effective profile is served by
 # the dedicated /admin/realms/{realm}/users/profile endpoint, NOT the /components
 # API that community.general.keycloak_userprofile writes to — on KC 26 that module

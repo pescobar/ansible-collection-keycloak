@@ -1,7 +1,7 @@
 ---
 namespace: pescobar
 name: keycloak
-version: 1.0.0
+version: 1.1.0
 readme: README.md
 authors:
   - pescobar
@@ -22,9 +22,10 @@ tags:
 dependencies:
   community.docker: ">=3.0.0"
   # community.general provides the keycloak_realm/group/client/identity_provider/
-  # realm_key modules. >=9.3.0 is the version bundled with ansible 10.3.0; the
-  # user profile is NOT applied through a community.general module (see the
-  # keycloak_cfg role), so no newer floor is needed.
+  # realm_key/authentication_required_actions modules. >=9.3.0 is the version
+  # bundled with ansible 10.3.0; the user profile is NOT applied through a
+  # community.general module (see the keycloak_cfg role), so no newer floor is
+  # needed.
   community.general: ">=9.3.0"
   # ansible.utils.fact_diff renders the user-profile --diff (uri cannot). Bundled
   # with the ansible community package (ships with ansible 10.x).

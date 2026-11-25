@@ -142,6 +142,21 @@ keycloak_cfg_identity_providers: []
 #     state: present
 keycloak_cfg_realm_keys: []
 
+# Authentication -> Required actions, per realm. Each item is passed to
+# community.general.keycloak_authentication_required_actions. Built-in actions
+# are matched by `alias`; unspecified fields keep their current server value.
+# Do NOT use `state: absent` to "turn off" an action: that unregisters it.
+# Example (disable OTP setup and password change, e.g. managed by an external IdP):
+# keycloak_cfg_required_actions:
+#   - realm: myapp
+#     required_actions:
+#       - alias: CONFIGURE_TOTP
+#         enabled: false
+#       - alias: UPDATE_PASSWORD
+#         enabled: false
+#     state: present
+keycloak_cfg_required_actions: []
+
 # Declarative User Profile (Realm Settings -> User profile) per realm. There is
 # one effective profile per realm. This is NOT applied through
 # community.general.keycloak_userprofile: on Keycloak 24+ the live profile is

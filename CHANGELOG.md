@@ -7,6 +7,25 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-25
+
+### Added
+
+- `keycloak_cfg`: `keycloak_cfg_required_actions` manages Authentication →
+  Required actions per realm via
+  `community.general.keycloak_authentication_required_actions` (e.g. turn off
+  `CONFIGURE_TOTP` / `UPDATE_PASSWORD` when an external IdP owns them).
+
+## [1.0.0] - 2026-07-23
+
+First release as an Ansible collection. Converts the former standalone role into
+`pescobar.keycloak` with two roles.
+
+The *Changed* and *Fixed* entries, and the first two *Added* entries, landed
+late but before the `1.0.0` tag, so they ship in the 1.0.0 artifact. Where they
+conflict with the later *Added* or *Notes* entries (user-profile item shape,
+`community.general` floor), they take precedence.
+
 ### Changed
 
 - `keycloak_cfg`: apply the declarative user profile through the dedicated
@@ -20,13 +39,6 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `keycloak_cfg`: lower the `community.general` floor back to `>=9.3.0` (the
   version bundled with ansible 10.3.0) now that no user-profile module is used.
 
-### Added
-
-- `keycloak_cfg`: render a before/after `--diff` of pending user-profile changes
-  via `ansible.utils.fact_diff` (the `uri` PUT that applies them cannot emit a
-  diff). Adds an `ansible.utils >= 2.0.0` dependency (bundled with the ansible
-  community package).
-
 ### Fixed
 
 - `keycloak_cfg`: give every `loop` its own `loop_var` (`_kc_item`) to silence the
@@ -38,6 +50,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `keycloak_cfg`: render a before/after `--diff` of pending user-profile changes
+  via `ansible.utils.fact_diff` (the `uri` PUT that applies them cannot emit a
+  diff). Adds an `ansible.utils >= 2.0.0` dependency (bundled with the ansible
+  community package).
 - `keycloak_cfg`: `files/gen_vars_from_export.py` — an offline converter that
   turns a native `kc.sh export` realm JSON into flat `keycloak_cfg_*` variables
   with module-native option names and named Vault placeholders for all secrets
@@ -46,14 +62,6 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   A `--with-secrets` flag inlines real secret values instead of placeholders;
   in that mode the tool warns on stderr and the output header flags the plaintext
   secrets, listing each by the Vault variable name it should be moved to.
-
-## [1.0.0] - 2026-07-23
-
-First release as an Ansible collection. Converts the former standalone role into
-`pescobar.keycloak` with two roles.
-
-### Added
-
 - **`keycloak_deploy` role** — deploys Keycloak in production mode behind a Caddy
   TLS-terminating reverse proxy (automatic HTTPS via Let's Encrypt) with a
   PostgreSQL backend, as a Docker Compose stack.
@@ -92,5 +100,6 @@ First release as an Ansible collection. Converts the former standalone role into
   parameter names (e.g. `parent_id` for realm keys and user profiles).
 - `community.general >= 9.4.0` is required for the `keycloak_userprofile` module.
 
-[Unreleased]: https://github.com/pescobar/ansible-collection-keycloak/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/pescobar/ansible-collection-keycloak/releases/tag/v1.0.0
+[Unreleased]: https://github.com/pescobar/ansible-collection-keycloak/compare/1.1.0...HEAD
+[1.1.0]: https://github.com/pescobar/ansible-collection-keycloak/releases/tag/1.1.0
+[1.0.0]: https://github.com/pescobar/ansible-collection-keycloak/releases/tag/1.0.0

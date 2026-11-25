@@ -76,7 +76,7 @@ playbooks/                 # deploy.yml, configure.yml, export_realm.yml
 
 - `community.docker >= 3.0.0` (deploy).
 - `community.general >= 9.3.0` (cfg) — supplies the
-  `keycloak_realm`/`group`/`client`/`identity_provider`/`realm_key` modules. 9.3.0
+  `keycloak_realm`/`group`/`client`/`identity_provider`/`realm_key`/`authentication_required_actions` modules. 9.3.0
   is what ansible 10.3.0 bundles. The user profile is deliberately **not** applied
   through `keycloak_userprofile` (see below), so no newer floor is needed. Keep
   `galaxy.yml` and `requirements.yml` in sync.

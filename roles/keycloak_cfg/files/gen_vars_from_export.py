@@ -15,13 +15,13 @@ Unlike the REST-based playbooks/export_realm.yml (which needs only admin API
 access but produces a raw, review-heavy scaffold), this consumes the native
 export — the only source that contains realm-key *private* material — and maps
 each field to the module-native option names the keycloak_cfg role passes through
-to community.general.keycloak_*. It is still a starting point: review the output
+to middleware_automation.keycloak.keycloak_*. It is still a starting point: review the output
 and define the listed vault_* variables before applying.
 
 Get an export first (needs host/container access):
 
     docker compose exec keycloak /opt/keycloak/bin/kc.sh export \\
-        --dir /tmp/kc-export --realm myapp --users skip
+        --dir /tmp/kc-export --realm myapp --users skip --http-management-port=9001
     docker compose cp keycloak:/tmp/kc-export ./kc-export   # -> myapp-realm.json
 
 Then, one file per realm:
@@ -146,8 +146,8 @@ def convert(realm_rep: dict, out: dict) -> None:
 
     # --- realm settings ---
     realm_item = {"realm": realm}
-    # keycloak_realm requires `id` when creating a realm (a from-scratch deploy);
-    # Keycloak's realm id equals the realm name unless the export says otherwise.
+    # Keep the realm's internal id (equal to the realm name unless the export
+    # says otherwise).
     realm_item["id"] = realm_rep.get("id", realm)
     _pick(realm_rep, REALM_FIELDS, realm_item)
     if realm_rep.get("attributes"):
@@ -288,8 +288,9 @@ def main() -> None:
         print("#    this file (ansible-vault encrypt) and do NOT commit it as-is.")
     else:
         print("#  * Fill the vault_* variables below (kept out of this file).")
-    print("#  * Curated field subset: uncommon options and client protocol")
-    print("#    mappers are omitted — add them by hand if you need them.")
+    print("#  * Curated field subset: uncommon options, client protocol mappers,")
+    print("#    group attributes, generated realm keys, required actions and")
+    print("#    authentication flows are omitted — add them by hand if needed.")
     if VAULT_VARS:
         print("#")
         print("# Vault variables to define:")

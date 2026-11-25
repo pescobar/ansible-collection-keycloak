@@ -2,9 +2,9 @@
 # defaults file for keycloak_cfg
 #
 # Configures a running Keycloak instance through its admin REST API (via the
-# community.general.keycloak_* modules): realms, groups and clients, declared
-# as data. It does NOT deploy Keycloak — pair it with the keycloak_deploy role
-# from this collection.
+# middleware_automation.keycloak.keycloak_* modules), declared as data. It does
+# NOT deploy Keycloak — pair it with the keycloak_deploy role from this
+# collection.
 
 # ----------------------------------------------------------------------------
 # Connection / authentication
@@ -36,11 +36,11 @@ keycloak_cfg_no_log: true
 
 # ----------------------------------------------------------------------------
 # Desired state (declarative). Each list item is passed straight through to the
-# matching community.general.keycloak_* module, so any parameter that module
-# accepts is valid here. See:
-#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_realm_module.html
-#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_group_module.html
-#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_client_module.html
+# matching middleware_automation.keycloak.keycloak_* module, so any parameter
+# that module accepts is valid here. See:
+#   https://github.com/ansible-middleware/keycloak/blob/main/plugins/modules/keycloak_realm.py
+#   https://github.com/ansible-middleware/keycloak/blob/main/plugins/modules/keycloak_group.py
+#   https://github.com/ansible-middleware/keycloak/blob/main/plugins/modules/keycloak_client.py
 # ----------------------------------------------------------------------------
 
 # Realms to manage. Example:
@@ -73,10 +73,10 @@ keycloak_cfg_groups: []
 keycloak_cfg_clients: []
 
 # Identity providers (and their mappers) to manage. Each item is passed to
-# community.general.keycloak_identity_provider; the IdP's mappers are declared
-# inline via the `mappers` list, so this single loop configures both the IdP
-# and all its attribute/role/group mappers. See:
-#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_identity_provider_module.html
+# middleware_automation.keycloak.keycloak_identity_provider; the IdP's mappers
+# are declared inline via the `mappers` list, so this single loop configures
+# both the IdP and all its attribute/role/group mappers. See:
+#   https://github.com/ansible-middleware/keycloak/blob/main/plugins/modules/keycloak_identity_provider.py
 # Example:
 # keycloak_cfg_identity_providers:
 #   - realm: myapp
@@ -108,10 +108,10 @@ keycloak_cfg_clients: []
 keycloak_cfg_identity_providers: []
 
 # Realm key providers (signing / encryption keys) to manage. Each item is passed
-# to community.general.keycloak_realm_key. The target realm is given by
-# `parent_id` (a key is a component whose parent is the realm), which is separate
-# from the admin `auth_realm`. See:
-#   https://docs.ansible.com/ansible/latest/collections/community/general/keycloak_realm_key_module.html
+# to middleware_automation.keycloak.keycloak_realm_key. The target realm is given
+# by `parent_id` (a key is a component whose parent is the realm), which is
+# separate from the admin `auth_realm`. See:
+#   https://github.com/ansible-middleware/keycloak/blob/main/plugins/modules/keycloak_realm_key.py
 #
 # Caveat: Keycloak never returns the private key of an *imported* key, so the
 # module cannot detect drift for provider_id: rsa / rsa-enc / java-keystore.
@@ -143,8 +143,9 @@ keycloak_cfg_identity_providers: []
 keycloak_cfg_realm_keys: []
 
 # Authentication -> Required actions, per realm. Each item is passed to
-# community.general.keycloak_authentication_required_actions. Built-in actions
-# are matched by `alias`; unspecified fields keep their current server value.
+# middleware_automation.keycloak.keycloak_authentication_required_actions.
+# Built-in actions are matched by `alias`; unspecified fields keep their current
+# server value.
 # Do NOT use `state: absent` to "turn off" an action: that unregisters it.
 # Example (disable OTP setup and password change, e.g. managed by an external IdP):
 # keycloak_cfg_required_actions:
@@ -157,12 +158,33 @@ keycloak_cfg_realm_keys: []
 #     state: present
 keycloak_cfg_required_actions: []
 
+# Authentication flows and their executions, per realm. Each item is passed to
+# middleware_automation.keycloak.keycloak_authentication. On an existing flow
+# (e.g. the built-in `browser`) only the listed executions are updated, matched
+# by providerId (or displayName for sub-flows); unlisted ones are left alone.
+# `copyFrom` only applies when the flow is created. NEVER set `force: true` on a
+# built-in flow: it deletes and recreates the flow.
+# Example (skip the Keycloak login page, send users straight to an external IdP):
+# keycloak_cfg_authentication_flows:
+#   - realm: myapp
+#     alias: browser
+#     authenticationExecutions:
+#       - providerId: identity-provider-redirector
+#         requirement: ALTERNATIVE
+#         index: 2                     # its slot in `browser`: stays after Cookie
+#         authenticationConfig:
+#           alias: default-idp-redirect
+#           config:
+#             defaultProvider: my-oidc # the identity provider's alias
+#     state: present
+keycloak_cfg_authentication_flows: []
+
 # Declarative User Profile (Realm Settings -> User profile) per realm. There is
-# one effective profile per realm. This is NOT applied through
-# community.general.keycloak_userprofile: on Keycloak 24+ the live profile is
-# served by the dedicated /admin/realms/{realm}/users/profile endpoint, and that
-# module still writes to the legacy /components API (on KC 26 it creates ignored
-# duplicate components and never updates the real profile). The role instead PUTs
+# one effective profile per realm. This is NOT applied through the
+# keycloak_userprofile module: on Keycloak 24+ the live profile is served by the
+# dedicated /admin/realms/{realm}/users/profile endpoint, and that module still
+# writes to the legacy /components API (on KC 26 it creates ignored duplicate
+# components and never updates the real profile). The role instead PUTs
 # `profile` straight to /users/profile via ansible.builtin.uri, so `profile` is
 # the raw Keycloak profile JSON (camelCase keys, kebab-case validator ids) — the
 # exact shape returned by a GET on that endpoint or found in a realm export under
@@ -171,7 +193,6 @@ keycloak_cfg_required_actions: []
 # keycloak_cfg_user_profiles:
 #   - realm: myapp                     # target realm
 #     profile:
-#       unmanagedAttributePolicy: DISABLED
 #       attributes:
 #         - name: username
 #           displayName: "${username}"

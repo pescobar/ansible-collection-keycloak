@@ -69,7 +69,11 @@ keycloak_deploy_acme_email: "admin@example.com"
 # to use the Let's Encrypt production CA.
 keycloak_deploy_acme_ca: ""
 
-# Host ports Caddy binds. 80 is required for the ACME HTTP challenge / redirect.
+# Host side of Caddy's port mappings; may include a bind address, e.g.
+# "127.0.0.1:443". 80 is required for the ACME HTTP challenge / redirect.
+# Keycloak's public URLs are https://<keycloak_deploy_hostname> with no port, so
+# keep clients reaching it on 443 (change the HTTPS port only behind something
+# that still serves 443).
 keycloak_deploy_http_port: 80
 keycloak_deploy_https_port: 443
 

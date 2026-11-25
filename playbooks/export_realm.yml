@@ -4,8 +4,8 @@
 #
 # It reads the realm, its clients, groups, identity providers (+ mappers), realm
 # key providers and declarative user profile through the admin REST API and
-# writes them under the keycloak_cfg_* variable names, injecting the connective
-# fields (realm / parent_id / state) each item needs.
+# writes them under the keycloak_cfg_* variable names, adding the fields each
+# item needs (realm / parent_id / state).
 #
 # Run (controller-side; talks HTTP to kc_url):
 #   ansible-playbook pescobar/keycloak/playbooks/export_realm.yml \
@@ -14,15 +14,16 @@
 #     -e kc_admin_password=... \
 #     -e kc_export_dest=./myapp-keycloak_cfg.yml
 #
-# IMPORTANT — the output is a SCAFFOLD to review, not a guaranteed drop-in:
-#   * Secrets are NOT recoverable: client secrets come back masked ("**********")
-#     and realm-key private keys are never returned by Keycloak. Refill them from
-#     Vault before applying.
-#   * Values are the Keycloak REST *representation* (camelCase keys such as
-#     redirectUris / providerId / unmanagedAttributePolicy) and include
-#     server-managed fields (id, ...). The community.general.keycloak_* modules
-#     document snake_case option names, so review/rename/prune before feeding the
-#     file back through keycloak_cfg.
+# IMPORTANT — the output is a SCAFFOLD to review, not a drop-in:
+#   * Secrets are NOT exported: client secrets are dropped (Keycloak 26 returns
+#     them in cleartext), IdP secrets and realm-key private keys come back
+#     masked. Refill them from Vault before applying.
+#   * Values are the raw Keycloak REST representation. Its camelCase keys are
+#     mostly accepted as aliases by the middleware_automation.keycloak modules,
+#     but it also carries read-only fields they reject (id, access, internalId,
+#     subGroupCount, ...), empty values (authenticationFlowBindingOverrides: {})
+#     and list-valued component configs (realm keys: priority: ['100']). Prune
+#     and reshape before feeding the file back through keycloak_cfg.
 - name: Export a Keycloak realm to keycloak_cfg variables
   hosts: "{{ export_host | default('localhost') }}"
   gather_facts: false
@@ -34,15 +35,32 @@
     kc_realm: master
     kc_validate_certs: true
     kc_export_dest: "./{{ kc_realm }}-keycloak_cfg.yml"
-    kc_include_default_clients: false
-    # Built-in clients Keycloak creates in every realm; excluded by default.
-    kc_default_clients:
+    # Clients left out of the export: the built-ins Keycloak creates in every
+    # realm. Set to [] to export them too.
+    kc_skip_clients:
       - account
       - account-console
       - admin-cli
       - broker
       - realm-management
       - security-admin-console
+    _kc_api: "{{ kc_url }}/admin/realms/{{ kc_realm }}"
+    _kc_export:
+      keycloak_cfg_realms:
+        - "{{ _kc_realm.json | combine({'state': 'present'}) }}"
+      # Keycloak 26 returns confidential-client secrets in cleartext: drop them.
+      keycloak_cfg_clients: >-
+        {{ _kc_clients.json
+           | rejectattr('clientId', 'in', kc_skip_clients)
+           | map('combine', {'realm': kc_realm, 'state': 'present'})
+           | map('dict2items') | map('rejectattr', 'key', 'eq', 'secret') | map('list') | map('items2dict')
+           | list }}
+      keycloak_cfg_groups: "{{ _kc_groups.json | map('combine', {'realm': kc_realm, 'state': 'present'}) | list }}"
+      keycloak_cfg_identity_providers: "{{ _kc_idps_with_mappers | default([]) }}"
+      keycloak_cfg_realm_keys: "{{ _kc_keys.json | map('combine', {'parent_id': kc_realm, 'state': 'present'}) | list }}"
+      keycloak_cfg_user_profiles:
+        - realm: "{{ kc_realm }}"
+          profile: "{{ _kc_profile.json }}"
 
   tasks:
     - name: Validate inputs
@@ -65,101 +83,62 @@
           username: "{{ kc_admin_user }}"
           password: "{{ kc_admin_password }}"
         validate_certs: "{{ kc_validate_certs }}"
-        status_code: 200
       register: _kc_token
       no_log: true
 
-    - name: Set request headers
+    - name: Read the realm configuration
+      module_defaults:
+        ansible.builtin.uri:
+          headers:
+            Authorization: "Bearer {{ _kc_token.json.access_token }}"
+          validate_certs: "{{ kc_validate_certs }}"
+      block:
+        - name: Fetch the realm
+          ansible.builtin.uri:
+            url: "{{ _kc_api }}"
+          register: _kc_realm
+
+        - name: Fetch clients
+          ansible.builtin.uri:
+            url: "{{ _kc_api }}/clients"
+          register: _kc_clients
+
+        - name: Fetch groups
+          ansible.builtin.uri:
+            url: "{{ _kc_api }}/groups"
+          register: _kc_groups
+
+        - name: Fetch identity providers
+          ansible.builtin.uri:
+            url: "{{ _kc_api }}/identity-provider/instances"
+          register: _kc_idps
+
+        - name: Fetch identity provider mappers
+          ansible.builtin.uri:
+            url: "{{ _kc_api }}/identity-provider/instances/{{ item.alias }}/mappers"
+          loop: "{{ _kc_idps.json }}"
+          loop_control:
+            label: "{{ item.alias }}"
+          register: _kc_idp_mappers
+
+        - name: Fetch realm key providers
+          ansible.builtin.uri:
+            url: "{{ _kc_api }}/components?type=org.keycloak.keys.KeyProvider"
+          register: _kc_keys
+
+        - name: Fetch the declarative user profile
+          ansible.builtin.uri:
+            url: "{{ _kc_api }}/users/profile"
+          register: _kc_profile
+
+    - name: Attach each identity provider's mappers to it
       ansible.builtin.set_fact:
-        _kc_headers:
-          Authorization: "Bearer {{ _kc_token.json.access_token }}"
-
-    - name: Fetch realm representation
-      ansible.builtin.uri:
-        url: "{{ kc_url }}/admin/realms/{{ kc_realm }}"
-        headers: "{{ _kc_headers }}"
-        validate_certs: "{{ kc_validate_certs }}"
-      register: _kc_realm
-
-    - name: Fetch clients
-      ansible.builtin.uri:
-        url: "{{ kc_url }}/admin/realms/{{ kc_realm }}/clients"
-        headers: "{{ _kc_headers }}"
-        validate_certs: "{{ kc_validate_certs }}"
-      register: _kc_clients
-
-    - name: Fetch groups
-      ansible.builtin.uri:
-        url: "{{ kc_url }}/admin/realms/{{ kc_realm }}/groups"
-        headers: "{{ _kc_headers }}"
-        validate_certs: "{{ kc_validate_certs }}"
-      register: _kc_groups
-
-    - name: Fetch identity providers
-      ansible.builtin.uri:
-        url: "{{ kc_url }}/admin/realms/{{ kc_realm }}/identity-provider/instances"
-        headers: "{{ _kc_headers }}"
-        validate_certs: "{{ kc_validate_certs }}"
-      register: _kc_idps
-
-    - name: Fetch identity provider mappers
-      ansible.builtin.uri:
-        url: "{{ kc_url }}/admin/realms/{{ kc_realm }}/identity-provider/instances/{{ item.alias }}/mappers"
-        headers: "{{ _kc_headers }}"
-        validate_certs: "{{ kc_validate_certs }}"
-      register: _kc_idp_mappers
-      loop: "{{ _kc_idps.json }}"
+        _kc_idps_with_mappers: >-
+          {{ _kc_idps_with_mappers | default([])
+             + [item.item | combine({'realm': kc_realm, 'mappers': item.json, 'state': 'present'})] }}
+      loop: "{{ _kc_idp_mappers.results }}"
       loop_control:
-        label: "{{ item.alias }}"
-
-    - name: Fetch realm key providers
-      ansible.builtin.uri:
-        url: "{{ kc_url }}/admin/realms/{{ kc_realm }}/components?parent={{ _kc_realm.json.id }}&type=org.keycloak.keys.KeyProvider"
-        headers: "{{ _kc_headers }}"
-        validate_certs: "{{ kc_validate_certs }}"
-      register: _kc_keys
-
-    - name: Fetch declarative user profile
-      ansible.builtin.uri:
-        url: "{{ kc_url }}/admin/realms/{{ kc_realm }}/users/profile"
-        headers: "{{ _kc_headers }}"
-        validate_certs: "{{ kc_validate_certs }}"
-      register: _kc_userprofile
-
-    - name: Build identity providers with inline mappers
-      ansible.builtin.set_fact:
-        _kc_export_idps: >-
-          {{ _kc_export_idps | default([])
-             + [ item.0 | combine({'realm': kc_realm, 'mappers': item.1, 'state': 'present'}) ] }}
-      loop: "{{ _kc_idps.json | zip(_kc_idp_mappers.results | map(attribute='json') | list) | list }}"
-      loop_control:
-        label: "{{ item.0.alias }}"
-
-    - name: Assemble the keycloak_cfg export structure
-      ansible.builtin.set_fact:
-        _kc_export:
-          keycloak_cfg_realms:
-            - "{{ _kc_realm.json | combine({'state': 'present'}) }}"
-          keycloak_cfg_clients: >-
-            {{ _kc_clients.json
-               | rejectattr('clientId', 'in', (kc_include_default_clients | ternary([], kc_default_clients)))
-               | map('combine', {'realm': kc_realm, 'state': 'present'})
-               | list }}
-          keycloak_cfg_groups: >-
-            {{ _kc_groups.json
-               | map('combine', {'realm': kc_realm, 'state': 'present'})
-               | list }}
-          keycloak_cfg_identity_providers: "{{ _kc_export_idps | default([]) }}"
-          keycloak_cfg_realm_keys: >-
-            {{ _kc_keys.json
-               | map('combine', {'parent_id': kc_realm, 'state': 'present'})
-               | list }}
-          keycloak_cfg_user_profiles:
-            - parent_id: "{{ kc_realm }}"
-              config:
-                kc_user_profile_config:
-                  - "{{ _kc_userprofile.json }}"
-              state: present
+        label: "{{ item.item.alias }}"
 
     - name: Write the keycloak_cfg vars file
       ansible.builtin.copy:
@@ -171,12 +150,10 @@
           #   source realm : {{ kc_realm }}
           #   source server: {{ kc_url }}
           #
-          # SCAFFOLD — review before applying with keycloak_cfg:
-          #  * Secrets are NOT exported. Client secrets are masked ("**********")
-          #    and realm-key private keys are never returned — refill from Vault.
-          #  * Keys are the Keycloak REST representation (camelCase) and include
-          #    server-managed fields (id, ...). Rename/prune to match the
-          #    community.general.keycloak_* module options before use.
+          # SCAFFOLD — review before applying with keycloak_cfg (see the
+          # playbook header): secrets are not exported (client secrets dropped,
+          # IdP secrets and realm-key private keys masked), and the raw REST
+          # representation must be pruned/reshaped for the keycloak_* modules.
           {{ _kc_export | to_nice_yaml(indent=2, width=140) }}
 
     - name: Report

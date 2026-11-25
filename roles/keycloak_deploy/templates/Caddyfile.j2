@@ -13,13 +13,10 @@
 (keycloak_proxy) {
 	encode zstd gzip
 
-	reverse_proxy keycloak:8080 {
-		# Preserve the original host/proto so Keycloak (KC_PROXY_HEADERS=xforwarded)
-		# can reconstruct correct absolute URLs.
-		header_up Host {host}
-		header_up X-Forwarded-Proto {scheme}
-		header_up X-Forwarded-Host {host}
-	}
+	# Caddy passes the original Host through and sets X-Forwarded-For/-Proto/-Host
+	# by default, so Keycloak (KC_PROXY_HEADERS=xforwarded) can reconstruct correct
+	# absolute URLs. Don't set them with {host}: that placeholder drops the port.
+	reverse_proxy keycloak:8080
 }
 
 {$KEYCLOAK_HOSTNAME} {

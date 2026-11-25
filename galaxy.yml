@@ -7,8 +7,9 @@ authors:
   - pescobar
 description: >-
   Deploy and configure Keycloak. Ships two roles: keycloak_deploy (Keycloak +
-  Caddy TLS reverse proxy + PostgreSQL via Docker Compose) and keycloak_configure
-  (manage realms, clients and users through the Keycloak admin API).
+  Caddy TLS reverse proxy + PostgreSQL via Docker Compose) and keycloak_cfg
+  (manage realms, clients, identity providers, keys, authentication and user
+  profiles through the Keycloak admin API).
 license:
   - MIT
 tags:
@@ -21,12 +22,9 @@ tags:
 # Collections this one depends on (installed automatically with the collection).
 dependencies:
   community.docker: ">=3.0.0"
-  # community.general provides the keycloak_realm/group/client/identity_provider/
-  # realm_key/authentication_required_actions modules. >=9.3.0 is the version
-  # bundled with ansible 10.3.0; the user profile is NOT applied through a
-  # community.general module (see the keycloak_cfg role), so no newer floor is
-  # needed.
-  community.general: ">=9.3.0"
+  # NOT listed on purpose: middleware_automation.keycloak (>=3.1.3) provides the
+  # keycloak_* modules keycloak_cfg uses, but the user installs it (see README /
+  # requirements.yml).
   # ansible.utils.fact_diff renders the user-profile --diff (uri cannot). Bundled
   # with the ansible community package (ships with ansible 10.x).
   ansible.utils: ">=2.0.0"

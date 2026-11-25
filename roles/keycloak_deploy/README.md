@@ -54,7 +54,7 @@ Commonly tuned optional variables:
 | `keycloak_deploy_admin_hostname_allowed_ips` | `[]` | Optional CIDR/IP (string) or list of them. When set (and `keycloak_deploy_admin_hostname` is set), Caddy returns 403 to any client outside these subnets before the request reaches Keycloak. |
 | `keycloak_deploy_dir` | `/opt/keycloak` | Where artifacts are rendered. |
 | `keycloak_deploy_acme_ca` | `""` | Set to the LE **staging** URL while testing to avoid rate limits. |
-| `keycloak_deploy_http_port` / `keycloak_deploy_https_port` | `80` / `443` | Host ports Caddy binds. |
+| `keycloak_deploy_http_port` / `keycloak_deploy_https_port` | `80` / `443` | Host ports Caddy binds (may include a bind address, e.g. `127.0.0.1:443`). Keycloak's public URLs assume clients reach it on 443. |
 | `keycloak_deploy_extra_env` | `{}` | Extra `KC_*` env vars for Keycloak. |
 
 ## Usage

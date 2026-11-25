@@ -7,6 +7,52 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `keycloak_cfg` now calls the Keycloak modules from
+  **`middleware_automation.keycloak` (>= 3.1.3)** instead of `community.general`.
+  The modules moved there in community.general 14 (which keeps only deprecated
+  redirects, removed in 16), so on current Ansible the role failed with
+  `couldn't resolve module/action 'community.general.keycloak_realm'`; and the
+  `community.general` versions that still ship them are buggy on Keycloak 25+
+  (authentication-flow priority reset before 10.2.0, no generated realm keys
+  before 13.0.0). Option names are unchanged. The collection is **not installed
+  automatically** — install it yourself (`ansible-galaxy collection install
+  'middleware_automation.keycloak:>=3.1.3'` or `-r requirements.yml`).
+  `community.general` is no longer a dependency, and the collection now needs
+  ansible-core >= 2.16.
+- `playbooks/export_realm.yml`: `kc_include_default_clients` /
+  `kc_default_clients` replaced by a single `kc_skip_clients` list (defaults to
+  the built-in clients; set `[]` to export every client).
+- `keycloak_deploy`: the Docker preflight is a single `docker version` /
+  `docker compose version` probe with one combined error message.
+
+### Added
+
+- `keycloak_cfg`: `keycloak_cfg_authentication_flows` manages authentication
+  flows and their executions per realm via the `keycloak_authentication` module
+  (e.g. set a default identity provider on the `browser` flow so users skip the
+  Keycloak login page).
+
+### Fixed
+
+- `playbooks/export_realm.yml`: client secrets were written to the export in
+  **cleartext** (Keycloak 26 returns them in the client representation) although
+  the file header claimed they were masked; they are now dropped. User profiles
+  are exported in the current `{realm, profile}` shape instead of the pre-1.0.0
+  `{parent_id, config}` one.
+- `keycloak_cfg`: the user profile was re-PUT (reported `changed`) on every run
+  unless each attribute declared `multivalued`; the comparison now applies
+  Keycloak's `multivalued: false` default.
+- `keycloak_deploy`: Caddy forwarded `Host` / `X-Forwarded-Host` via `{host}`,
+  which drops the port, so with `keycloak_deploy_https_port` other than 443
+  Keycloak built absolute URLs (e.g. `Location` headers) without it. Caddy's
+  default forwarding is used instead.
+- Docs: `unmanagedAttributePolicy: DISABLED` (rejected by Keycloak) removed from
+  the user-profile examples; the role README and `playbooks/configure.yml` showed
+  the pre-1.0.0 user-profile shape; `kc.sh export` on a running stack needs
+  `--http-management-port=9001`.
+
 ## [1.1.0] - 2026-11-25
 
 ### Added

@@ -1,7 +1,8 @@
 ---
-# Example: configure realms, groups and clients on a running Keycloak.
+# Example: configure realms, groups, clients, an identity provider, a realm key
+# and a user profile on a running Keycloak.
 # Run with: ansible-playbook -i inventory pescobar/keycloak/playbooks/configure.yml --ask-vault-pass
-- name: Configure Keycloak realms and clients
+- name: Configure Keycloak
   hosts: keycloak
   gather_facts: false
   roles:
@@ -85,31 +86,20 @@
             state: present
 
         keycloak_cfg_user_profiles:
-          - parent_id: shop
-            config:
-              kc_user_profile_config:
-                - unmanaged_attribute_policy: DISABLED
-                  attributes:
-                    - name: username
-                      displayName: "${username}"
-                      permissions:
-                        view: ["admin", "user"]
-                        edit: ["admin"]
-                    - name: email
-                      displayName: "${email}"
-                      required:
-                        roles: ["user"]
-                      permissions:
-                        view: ["admin", "user"]
-                        edit: ["admin", "user"]
-                    - name: department
-                      displayName: "Department"
-                      validations:
-                        length: { max: 255 }
-                      permissions:
-                        view: ["admin", "user"]
-                        edit: ["admin"]
-                  groups:
-                    - name: organization
-                      displayHeader: "Organization"
-            state: present
+          - realm: shop
+            profile:
+              attributes:
+                - name: username
+                  displayName: "${username}"
+                  permissions: { view: ["admin", "user"], edit: ["admin"] }
+                - name: email
+                  displayName: "${email}"
+                  required: { roles: ["user"] }
+                  permissions: { view: ["admin", "user"], edit: ["admin", "user"] }
+                - name: department
+                  displayName: "Department"
+                  validations: { length: { max: 255 } }
+                  permissions: { view: ["admin", "user"], edit: ["admin"] }
+              groups:
+                - name: organization
+                  displayHeader: "Organization"

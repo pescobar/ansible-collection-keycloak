@@ -15,14 +15,13 @@
   ansible.builtin.uri:
     url: "{{ keycloak_cfg_url }}/realms/{{ keycloak_cfg_admin_realm }}"
     validate_certs: "{{ keycloak_cfg_validate_certs }}"
-    status_code: 200
   register: _keycloak_cfg_ready
   until: _keycloak_cfg_ready.status == 200
   retries: "{{ (keycloak_cfg_wait_timeout | int // 10) | int }}"
   delay: 10
 
 - name: Manage realms
-  community.general.keycloak_realm:
+  middleware_automation.keycloak.keycloak_realm:
   args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_realms }}"
   loop_control:
@@ -30,8 +29,22 @@
     label: "{{ _kc_item.realm | default(_kc_item.id) | default('realm') }}"
   no_log: "{{ keycloak_cfg_no_log }}"
 
+# Runs after realms (a flow needs its realm) and before clients / identity
+# providers (their flow overrides reference flows by alias).
+# ponytail: realms are applied first, so binding a flow created in this same run
+# via keycloak_cfg_realms[].browser_flow fails on that first run; a second
+# realms pass after this task fixes it if custom realm-bound flows are needed.
+- name: Manage authentication flows
+  middleware_automation.keycloak.keycloak_authentication:
+  args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
+  loop: "{{ keycloak_cfg_authentication_flows }}"
+  loop_control:
+    loop_var: _kc_item
+    label: "{{ _kc_item.realm | default('realm') }} / {{ _kc_item.alias | default('flow') }}"
+  no_log: "{{ keycloak_cfg_no_log }}"
+
 - name: Manage groups
-  community.general.keycloak_group:
+  middleware_automation.keycloak.keycloak_group:
   args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_groups }}"
   loop_control:
@@ -40,7 +53,7 @@
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage clients
-  community.general.keycloak_client:
+  middleware_automation.keycloak.keycloak_client:
   args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_clients }}"
   loop_control:
@@ -49,7 +62,7 @@
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage identity providers (and their mappers)
-  community.general.keycloak_identity_provider:
+  middleware_automation.keycloak.keycloak_identity_provider:
   args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_identity_providers }}"
   loop_control:
@@ -58,7 +71,7 @@
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage realm keys
-  community.general.keycloak_realm_key:
+  middleware_automation.keycloak.keycloak_realm_key:
   args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_realm_keys }}"
   loop_control:
@@ -67,7 +80,7 @@
   no_log: "{{ keycloak_cfg_no_log }}"
 
 - name: Manage authentication required actions
-  community.general.keycloak_authentication_required_actions:
+  middleware_automation.keycloak.keycloak_authentication_required_actions:
   args: "{{ _keycloak_cfg_auth | combine(_kc_item) }}"
   loop: "{{ keycloak_cfg_required_actions }}"
   loop_control:
@@ -77,7 +90,7 @@
 
 # Declarative user profile. On Keycloak 24+ the effective profile is served by
 # the dedicated /admin/realms/{realm}/users/profile endpoint, NOT the /components
-# API that community.general.keycloak_userprofile writes to — on KC 26 that module
+# API that the keycloak_userprofile module writes to — on KC 26 that module
 # silently creates ignored duplicate components and never updates the live profile.
 # So manage it directly over REST: token -> GET current -> PUT only when it differs.
 - name: Get an admin token for the user-profile API
@@ -117,12 +130,12 @@
 - name: Show pending realm user-profile changes
   ansible.utils.fact_diff:
     before: "{{ _kc_res.json | to_nice_yaml }}"
-    after: "{{ _kc_res._kc_item.profile | to_nice_yaml }}"
+    after: "{{ _keycloak_cfg_profile_wanted | to_nice_yaml }}"
   loop: "{{ _keycloak_cfg_profile_current.results }}"
   loop_control:
     loop_var: _kc_res
     label: "{{ _kc_res._kc_item.realm }}"
-  when: _kc_res.json != _kc_res._kc_item.profile
+  when: _kc_res.json != _keycloak_cfg_profile_wanted
 
 - name: Manage realm user profiles
   ansible.builtin.uri:
@@ -141,6 +154,6 @@
     loop_var: _kc_res
     label: "{{ _kc_res._kc_item.realm }}"
   # Idempotent: only PUT when the live profile differs from the declared one.
-  when: _kc_res.json != _kc_res._kc_item.profile
+  when: _kc_res.json != _keycloak_cfg_profile_wanted
   changed_when: true
   no_log: "{{ keycloak_cfg_no_log }}"

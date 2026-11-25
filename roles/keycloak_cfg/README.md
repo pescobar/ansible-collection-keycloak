@@ -1,20 +1,25 @@
 # keycloak_cfg
 
 Configure a **running** Keycloak instance declaratively through its admin REST
-API: realms, groups and clients. Part of the `pescobar.keycloak` collection;
+API: realms, groups, clients, identity providers (with mappers), realm keys,
+required actions, authentication flows and user profiles. Part of the `pescobar.keycloak` collection;
 pair it with [`keycloak_deploy`](../keycloak_deploy/README.md), which stands the
 server up.
 
 This role does **not** deploy Keycloak and does not install anything on a host —
 it makes HTTP calls to the Keycloak admin API using the
-[`community.general.keycloak_*`](https://docs.ansible.com/ansible/latest/collections/community/general/)
+[`middleware_automation.keycloak.keycloak_*`](https://github.com/ansible-middleware/keycloak)
 modules.
 
 ## Requirements
 
 - A reachable, running Keycloak instance.
-- The `community.general` collection on the controller (declared as a collection
-  dependency in `galaxy.yml`).
+- ansible-core ≥ 2.16 and the **`middleware_automation.keycloak` ≥ 3.1.3**
+  collection on the controller. It is a documented dependency that is **not
+  installed automatically**:
+  `ansible-galaxy collection install 'middleware_automation.keycloak:>=3.1.3'`.
+  Without it Ansible stops with `couldn't resolve module/action
+  'middleware_automation.keycloak.keycloak_realm'`.
 - Admin credentials for a realm with cross-realm admin rights (normally the
   bootstrap admin in the `master` realm).
 
@@ -31,7 +36,7 @@ names its own target `realm`. The admin login is separate from the target realm.
 If you already operate a Keycloak server, you don't have to write these variables
 by hand. There are two seeding tools; both produce `keycloak_cfg_*` YAML you
 review and merge into your inventory. Both are **one-off starting points**, not
-guaranteed drop-ins — in particular, secrets are never emitted in cleartext.
+guaranteed drop-ins, and by default neither writes secrets in cleartext.
 
 ### Preferred: converter from a native `kc.sh export` (host access)
 
@@ -42,9 +47,11 @@ consumes a native realm export and emits the flat `keycloak_cfg_*` variables wit
 *only* available from a native export, never over the REST API).
 
 ```bash
-# 1. export the realm from the running server (needs container/host access)
+# 1. export the realm from the running server (needs container/host access).
+#    The running server already holds management port 9000 (health/metrics),
+#    so give the export process another one or it exits with "Address already in use".
 docker compose exec keycloak /opt/keycloak/bin/kc.sh export \
-    --dir /tmp/kc-export --realm myapp --users skip
+    --dir /tmp/kc-export --realm myapp --users skip --http-management-port=9001
 docker compose cp keycloak:/tmp/kc-export ./kc-export     # -> myapp-realm.json
 
 # 2. one file per realm (offline; the role never calls this)
@@ -84,10 +91,13 @@ ansible-playbook pescobar/keycloak/playbooks/export_realm.yml \
   -e kc_admin_password=... -e kc_export_dest=./myapp-keycloak_cfg.yml
 ```
 
-This needs more review: values are Keycloak's REST representation (camelCase, plus
-server-managed fields) which you rename/prune to match the module options, and
-realm-key private material cannot be recovered over REST. Prefer the converter
-above when you have host access.
+This needs more review: it writes Keycloak's raw REST representation, which
+carries read-only fields the modules reject (`id`, `access`, `internalId`, ...),
+empty values and list-valued realm-key settings (`priority: ['100']`) that you
+prune/reshape before applying. Client secrets are dropped; IdP secrets and
+realm-key private keys come back masked and cannot be recovered over REST. The
+built-in clients are skipped (`kc_skip_clients`; set it to `[]` to keep them).
+Prefer the converter above when you have host access.
 
 ## Role variables
 
@@ -109,18 +119,23 @@ See [`defaults/main.yml`](defaults/main.yml) for the full list.
 | `keycloak_cfg_identity_providers` | `[]` | List of identity provider definitions, each with inline `mappers`. |
 | `keycloak_cfg_realm_keys` | `[]` | List of realm key-provider definitions (signing / encryption keys). |
 | `keycloak_cfg_user_profiles` | `[]` | List of per-realm declarative User Profile definitions. |
-| `keycloak_cfg_required_actions` | `[]` | Per-realm Authentication → Required actions (`community.general.keycloak_authentication_required_actions`). Turn one off with `enabled: false`; `state: absent` unregisters it instead. |
+| `keycloak_cfg_authentication_flows` | `[]` | Per-realm authentication flows and executions (`middleware_automation.keycloak.keycloak_authentication`), e.g. a default IdP on the `browser` flow's Identity Provider Redirector. Never `force: true` a built-in flow (it is deleted and recreated). |
+| `keycloak_cfg_required_actions` | `[]` | Per-realm Authentication → Required actions (`middleware_automation.keycloak.keycloak_authentication_required_actions`). Turn one off with `enabled: false`; `state: absent` unregisters it instead. |
 
 Each item in `keycloak_cfg_realms` / `keycloak_cfg_groups` / `keycloak_cfg_clients`
 / `keycloak_cfg_identity_providers` / `keycloak_cfg_realm_keys` /
-`keycloak_cfg_user_profiles` is passed **verbatim** to the matching
-`community.general.keycloak_realm` / `keycloak_group` / `keycloak_client` /
-`keycloak_identity_provider` / `keycloak_realm_key` / `keycloak_userprofile`
-module, so every parameter those modules accept is valid — consult their module
-docs for the full option set.
+`keycloak_cfg_required_actions` / `keycloak_cfg_authentication_flows` is passed
+**verbatim** to the matching `middleware_automation.keycloak.keycloak_realm` / `keycloak_group`
+/ `keycloak_client` / `keycloak_identity_provider` / `keycloak_realm_key` /
+`keycloak_authentication_required_actions` / `keycloak_authentication` module, so
+every parameter those modules accept is valid — consult their module docs for
+the full option set. `keycloak_cfg_user_profiles` is the exception: it is PUT
+straight to the Keycloak REST API (see below).
 
-> **Note:** `keycloak_cfg_user_profiles` uses `community.general.keycloak_userprofile`,
-> added in **community.general 9.4.0** — this collection requires `>= 9.4.0`.
+> **Coming from `community.general`?** Option names are the same; the role just
+> calls the modules from `middleware_automation.keycloak`. The one rename that
+> matters if you add client scopes yourself: `keycloak_clientscope` became
+> `keycloak_client_scope`.
 
 ### Identity providers and mappers
 
@@ -202,46 +217,40 @@ keycloak_cfg_realm_keys:
 
 ### Realm user profiles
 
-The declarative **User Profile** (Realm Settings → User profile) is a realm
-component, so — like realm keys — the target realm is `parent_id`. There is one
-profile per realm; its attributes and groups are declared inline under
-`config.kc_user_profile_config`.
+The declarative **User Profile** (Realm Settings → User profile) is applied by
+PUTting `profile` — the raw Keycloak profile JSON (camelCase keys, kebab-case
+validator ids) — to `/admin/realms/{realm}/users/profile`, not through
+the `keycloak_userprofile` module (on Keycloak 24+ it still writes a
+legacy API that is ignored). There is one profile per realm and the PUT replaces
+it whole, so declare every attribute, including the built-in ones. It is only
+sent when it differs from the live profile (Keycloak's `multivalued: false`
+default is taken into account), and `--diff` shows the pending change.
 
 ```yaml
 keycloak_cfg_user_profiles:
-  - parent_id: myapp
-    config:
-      kc_user_profile_config:
-        - unmanaged_attribute_policy: DISABLED
-          attributes:
-            - name: username
-              displayName: "${username}"
-              permissions:
-                view: ["admin", "user"]
-                edit: ["admin"]
-            - name: email
-              displayName: "${email}"
-              required:
-                roles: ["user"]
-              permissions:
-                view: ["admin", "user"]
-                edit: ["admin", "user"]
-            - name: department
-              displayName: "Department"
-              validations:
-                length: { max: 255 }
-              permissions:
-                view: ["admin", "user"]
-                edit: ["admin"]
-          groups:
-            - name: organization
-              displayHeader: "Organization"
-    state: present
+  - realm: myapp
+    profile:
+      attributes:
+        - name: username
+          displayName: "${username}"
+          permissions: { view: ["admin", "user"], edit: ["admin"] }
+        - name: email
+          displayName: "${email}"
+          required: { roles: ["user"] }
+          permissions: { view: ["admin", "user"], edit: ["admin", "user"] }
+        - name: department
+          displayName: "Department"
+          validations: { length: { max: 255 } }
+          permissions: { view: ["admin", "user"], edit: ["admin"] }
+      groups:
+        - name: organization
+          displayHeader: "Organization"
 ```
 
-`unmanaged_attribute_policy` controls whether attributes not declared here are
-allowed (`DISABLED` = strict; other values permit unmanaged attributes with
-varying visibility). Requires `community.general >= 9.4.0`.
+`unmanagedAttributePolicy` controls whether attributes not declared here are
+allowed: omit it for strict (the console's "Disabled"; Keycloak rejects the
+literal value `DISABLED`), or set `ENABLED` / `ADMIN_EDIT` / `ADMIN_VIEW` to
+permit unmanaged attributes with varying visibility.
 
 ## Example: configuring multiple realms
 
@@ -293,8 +302,12 @@ One admin login, two realms configured in a single run.
 - **Where it runs:** the tasks only make HTTP calls, so they can run on the
   Keycloak host or be delegated to `localhost` — whichever can reach
   `keycloak_cfg_url`.
-- **Idempotency:** the underlying modules are idempotent; re-running only
-  reports changes when the desired state differs.
+- **Idempotency:** re-running only reports changes when the desired state
+  differs, with known exceptions: imported realm keys with `force: true` are
+  re-applied every run; on Keycloak 26 an identity provider with a
+  `clientSecret` always reports `changed` (the module can no longer read the
+  stored secret to compare); and a realm created in this run may report one more
+  change on the next run while Keycloak fills in its defaults.
 - **Debugging:** set `keycloak_cfg_no_log: false` temporarily to see which item
   failed (this will expose the admin password in output).
 

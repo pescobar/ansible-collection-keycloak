@@ -7,20 +7,27 @@ It ships two roles:
 | Role | Purpose |
 | --- | --- |
 | [`keycloak_deploy`](roles/keycloak_deploy/README.md) | Stand up Keycloak (production mode) behind a [Caddy](https://caddyserver.com/) TLS-terminating reverse proxy (automatic HTTPS via Let's Encrypt) with a PostgreSQL backend, as a Docker Compose stack. Does **not** install Docker. |
-| [`keycloak_cfg`](roles/keycloak_cfg/README.md) | Configure a running Keycloak instance declaratively (realms, groups, clients) through its admin REST API. One admin login can manage many realms. |
+| [`keycloak_cfg`](roles/keycloak_cfg/README.md) | Configure a running Keycloak instance declaratively through its admin REST API: realms, groups, clients, identity providers, realm keys, required actions, authentication flows and user profiles. One admin login can manage many realms. |
 
 ```
    keycloak_deploy                              keycloak_cfg
    ──────────────                               ────────────
-   Caddy (TLS) ─▶ Keycloak ─▶ PostgreSQL   +    realms / groups / clients
+   Caddy (TLS) ─▶ Keycloak ─▶ PostgreSQL   +    realms / clients / IdPs / ...
                                                 via the admin REST API
 ```
 
 ## Requirements
 
-- **Controller:** Ansible ≥ 2.15 and the collection dependencies
-  (`community.docker`, `community.general`), installed automatically with the
-  collection or via `requirements.yml`.
+- **Controller:** ansible-core ≥ 2.16 (e.g. the `ansible` 10.x package) and:
+  - `community.docker` and `ansible.utils`, installed automatically with the
+    collection.
+  - **`middleware_automation.keycloak` ≥ 3.1.3**, needed by `keycloak_cfg` and
+    **not installed automatically** — install it yourself (see below). It holds
+    the Keycloak modules that used to live in `community.general` (moved there in
+    community.general 14), so this collection does not need `community.general`
+    at all and leaves the version you have untouched. If it is missing,
+    Ansible stops with `couldn't resolve module/action
+    'middleware_automation.keycloak.keycloak_realm'`.
 - **Deploy target:** Docker Engine + the Compose v2 plugin already installed and
   running (this collection does not install Docker).
 - **DNS & firewall:** for Let's Encrypt, the Keycloak hostname must resolve
@@ -32,7 +39,9 @@ From a built tarball or a git source:
 
 ```bash
 ansible-galaxy collection install pescobar.keycloak
-# or, for the controller-side module dependencies:
+# required by keycloak_cfg, not pulled in automatically:
+ansible-galaxy collection install 'middleware_automation.keycloak:>=3.1.3'
+# or install every controller-side dependency at once:
 ansible-galaxy collection install -r requirements.yml
 ```
 

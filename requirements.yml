@@ -1,10 +1,15 @@
 ---
 # Controller-side collection dependencies.
 # Install with: ansible-galaxy collection install -r requirements.yml
+#
+# galaxy.yml auto-installs community.docker and ansible.utils with this
+# collection. middleware_automation.keycloak is deliberately NOT auto-installed:
+# it is listed only here, install it yourself.
 collections:
   - name: community.docker
     version: ">=3.0.0"
-  - name: community.general
-    version: ">=9.3.0"
   - name: ansible.utils
     version: ">=2.0.0"
+  # keycloak_* modules used by keycloak_cfg (formerly in community.general)
+  - name: middleware_automation.keycloak
+    version: ">=3.1.3"
